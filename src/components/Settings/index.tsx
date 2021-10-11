@@ -18,6 +18,7 @@ export const Settings = ({
 }) => {
   const { connected, disconnect, publicKey } = useWallet();
   const { endpoint, setEndpoint, env } = useConnectionConfig();
+  console.log(env);
   const { setVisible } = useWalletModal();
   const open = useCallback(() => setVisible(true), [setVisible]);
   const { setModal } = useModal();
@@ -34,7 +35,7 @@ export const Settings = ({
       <Box sx={{ display: "flex", minWidth: "100%" }}>
         {!connected && (
           <>
-            <NativeSelect style={{ marginBottom: 5 }}>
+            <NativeSelect style={{ marginBottom: 5 }} onChange={(e) => setEndpoint(e.target.value)}>
               {ENDPOINTS.map(({ name, endpoint }) => (
                 <option value={endpoint}>{name}</option>
               ))}

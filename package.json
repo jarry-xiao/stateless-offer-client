@@ -2,7 +2,7 @@
   "name": "react-template",
   "version": "0.1.0",
   "private": true,
-  "homepage": ".",
+  "homepage": "https://jarry-xiao.github.io/stateless-offer-client/",
   "dependencies": {
     "@emotion/react": "^11",
     "@emotion/styled": "^11",
