@@ -21,34 +21,35 @@ import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 
-const displayMakerButton = () => { };
+const displayMakerButton = () => {};
 
-const getSize = (n : any, mint: any, mintCache: any) => {
+const getSize = (n: any, mint: any, mintCache: any) => {
   const dec = mintCache[mint].decimals;
   const size = Math.floor(parseFloat(n) * Math.pow(10, dec));
   return size;
-}
+};
 
 const getDelegate = async (formState: any, mintCache: any) => {
   try {
     const sizeA = getSize(formState.sizeA, formState.mintA, mintCache);
     const sizeB = getSize(formState.sizeB, formState.mintB, mintCache);
-    return (await PublicKey.findProgramAddress(
-      [
-        Buffer.from("stateless_offer"),
-        (new PublicKey(formState.maker)).toBuffer(),
-        (new PublicKey(formState.mintA)).toBuffer(),
-        (new PublicKey(formState.mintB)).toBuffer(),
-        new Uint8Array((new BN(sizeA)).toArray("le", 8)),
-        new Uint8Array((new BN(sizeB)).toArray("le", 8)),
-      ],
-      new PublicKey("SAtnofysr9Uxk7m9YphxwfL5E3wyZJWUzjwA29Gw3tQ")
-    ))[0];
-  }
-  catch {
+    return (
+      await PublicKey.findProgramAddress(
+        [
+          Buffer.from("stateless_offer"),
+          new PublicKey(formState.maker).toBuffer(),
+          new PublicKey(formState.mintA).toBuffer(),
+          new PublicKey(formState.mintB).toBuffer(),
+          new Uint8Array(new BN(sizeA).toArray("le", 8)),
+          new Uint8Array(new BN(sizeB).toArray("le", 8)),
+        ],
+        new PublicKey("SAtnofysr9Uxk7m9YphxwfL5E3wyZJWUzjwA29Gw3tQ")
+      )
+    )[0];
+  } catch {
     return null;
   }
-}
+};
 
 const getDefaultFormState = () => {
   let url = new URL(window.location.href);
@@ -60,11 +61,119 @@ const getDefaultFormState = () => {
     sizeB: "0",
     maker: "",
   };
-  for(const key of params.keys()) {
+  for (const key of params.keys()) {
     defaultState[key] = params.get(key);
   }
   return defaultState;
-}
+};
+
+const displayActions = (
+  connection,
+  wallet: any,
+  formState: any,
+  mintCache: any,
+  isSeller,
+  hasDelegate,
+  hasValidDelegate,
+  validAmount
+) => {
+  if (isSeller) {
+    return (
+      <div>
+        <Button
+          variant="contained"
+          onClick={() => {
+            if (formState) {
+              try {
+                changeOffer(
+                  connection,
+                  new PublicKey(formState.mintA),
+                  new PublicKey(formState.mintB),
+                  new BN(getSize(formState.sizeA, formState.mintA, mintCache)),
+                  new BN(getSize(formState.sizeB, formState.mintB, mintCache)),
+                  wallet
+                );
+              } catch (e) {
+                return;
+              }
+            }
+          }}
+          sx={{ marginRight: "4px" }}
+        >
+          Open Offer
+        </Button>
+        {hasDelegate ? (
+          <Button
+            variant="contained"
+            color="error"
+            sx={{ marginRight: "4px" }}
+            onClick={() => {
+              if (formState) {
+                try {
+                  changeOffer(
+                    connection,
+                    new PublicKey(formState.mintA),
+                    new PublicKey(formState.mintB),
+                    new BN(
+                      getSize(formState.sizeA, formState.mintA, mintCache)
+                    ),
+                    new BN(
+                      getSize(formState.sizeB, formState.mintB, mintCache)
+                    ),
+                    wallet,
+                    false
+                  );
+                } catch (e) {
+                  return;
+                }
+              }
+            }}
+          >
+            Close Offer
+          </Button>
+        ) : (
+          <div></div>
+        )}
+      </div>
+    );
+  } else {
+    if (hasValidDelegate && validAmount) {
+      return (
+        <div>
+          <Button
+            variant="contained"
+            color="success"
+            onClick={() => {
+              if (formState) {
+                try {
+                  trade(
+                    connection,
+                    new PublicKey(formState.maker),
+                    new PublicKey(formState.mintA),
+                    new PublicKey(formState.mintB),
+                    new BN(
+                      getSize(formState.sizeA, formState.mintA, mintCache)
+                    ),
+                    new BN(
+                      getSize(formState.sizeB, formState.mintB, mintCache)
+                    ),
+                    wallet
+                  );
+                } catch (e) {
+                  return;
+                }
+              }
+            }}
+          >
+            Trade
+          </Button>
+        </div>
+      );
+    } else {
+      return <div></div>;
+    }
+  }
+};
 
 export function TransferBox() {
   const connection = useConnection();
@@ -75,6 +184,7 @@ export function TransferBox() {
   const [isSeller, setIsSeller] = useState(false);
   const [validAmount, setValidAmount] = useState(false);
   const [hasDelegate, setHasDelegate] = useState(false);
+  const [hasValidDelegate, setHasValidDelegate] = useState(false);
 
   useEffect(() => {
     if (!wallet) {
@@ -117,18 +227,22 @@ export function TransferBox() {
           try {
             const size = parseFloat(formState.sizeA);
             setValidAmount(totalAmount >= size && size > 0);
-          }
-          catch {
+          } catch {
             console.log("Not a valid float");
           }
         }
 
         const delegate = await getDelegate(formState, mintCache);
-        if (tokenAccount.delegate && delegate && tokenAccount.delegateOption != 0 && delegate.toBase58() === tokenAccount.delegate.toBase58()) {
-          setHasDelegate(true);
-        }
-        else{
-          setHasDelegate(false);
+        setHasDelegate(tokenAccount.delegateOption != 0);
+        if (
+          tokenAccount.delegate &&
+          delegate &&
+          tokenAccount.delegateOption != 0 &&
+          delegate.toBase58() === tokenAccount.delegate.toBase58()
+        ) {
+          setHasValidDelegate(true);
+        } else {
+          setHasValidDelegate(false);
         }
       }
       subId = connection.onAccountChange(sellerTokenAccount, async (result) => {
@@ -145,18 +259,22 @@ export function TransferBox() {
               try {
                 const size = parseFloat(formState.sizeA);
                 setValidAmount(totalAmount >= size && size > 0);
-              }
-              catch {
+              } catch {
                 console.log("Not a valid float");
               }
             }
 
+            setHasDelegate(tokenAccount.delegateOption != 0);
             const delegate = await getDelegate(formState, mintCache);
-            if (tokenAccount.delegate && delegate && tokenAccount.delegateOption != 0 && delegate.toBase58() === tokenAccount.delegate.toBase58()) {
-              setHasDelegate(true);
-            }
-            else{
-              setHasDelegate(false);
+            if (
+              tokenAccount.delegate &&
+              delegate &&
+              tokenAccount.delegateOption != 0 &&
+              delegate.toBase58() === tokenAccount.delegate.toBase58()
+            ) {
+              setHasValidDelegate(true);
+            } else {
+              setHasValidDelegate(false);
             }
           } catch (e) {
             console.log("Failed to deserialize account", e);
@@ -177,7 +295,7 @@ export function TransferBox() {
           let result = await connection.getAccountInfo(mint);
           if (result) {
             try {
-              const mintData = deserializeMint(result.data)
+              const mintData = deserializeMint(result.data);
               setMintCache({
                 ...mintCache,
                 [mintString]: mintData,
@@ -199,16 +317,22 @@ export function TransferBox() {
 
   useEffect(() => console.log(mintCache), [mintCache]);
 
-  useEffect(() => { }, [formState]);
+  useEffect(() => {}, [formState]);
 
   const setField = (name: any) => {
     const setFieldWithName = (e) => {
       setFormState({ ...formState, [name]: e.target.value });
       let url = new URL(window.location.href);
       let params = new URLSearchParams(url.search.slice(1));
-      params.set(name, escape(e.target.value));  
-      let newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + "?" + params.toString();   
-      window.history.pushState({path: newUrl}, '', newUrl);
+      params.set(name, escape(e.target.value));
+      let newUrl =
+        window.location.protocol +
+        "//" +
+        window.location.host +
+        window.location.pathname +
+        "?" +
+        params.toString();
+      window.history.pushState({ path: newUrl }, "", newUrl);
     };
     return setFieldWithName;
   };
@@ -272,84 +396,7 @@ export function TransferBox() {
         />
       </div>
       <div style={{ marginTop: "10px" }}>
-        {isSeller ? (
-          <div>
-            <Button
-              variant="contained"
-              onClick={() => {
-                if (formState) {
-                  try {
-                    changeOffer(
-                      connection,
-                      new PublicKey(formState.mintA),
-                      new PublicKey(formState.mintB),
-                      new BN(getSize(formState.sizeA, formState.mintA, mintCache)),
-                      new BN(getSize(formState.sizeB, formState.mintB, mintCache)),
-                      wallet
-                    );
-                  } catch (e) {
-                    return;
-                  }
-                }
-              }}
-              sx={{ marginRight: "4px" }}
-            >
-              Open Offer
-            </Button>
-            <Button
-              variant="contained"
-              color="error"
-              sx={{ marginRight: "4px" }}
-              onClick={() => {
-                if (formState) {
-                  try {
-                    changeOffer(
-                      connection,
-                      new PublicKey(formState.mintA),
-                      new PublicKey(formState.mintB),
-                      new BN(getSize(formState.sizeA, formState.mintA, mintCache)),
-                      new BN(getSize(formState.sizeB, formState.mintB, mintCache)),
-                      wallet,
-                      false
-                    );
-                  } catch (e) {
-                    return;
-                  }
-                }
-              }}
-            >
-              Close Offer
-            </Button>
-          </div>
-        ) : ( 
-          (hasDelegate && validAmount) ? 
-          <div>
-            <Button
-              variant="contained"
-              color="success"
-              onClick={() => {
-                if (formState) {
-                  try {
-                    trade(
-                      connection,
-                      new PublicKey(formState.maker),
-                      new PublicKey(formState.mintA),
-                      new PublicKey(formState.mintB),
-                      new BN(getSize(formState.sizeA, formState.mintA, mintCache)),
-                      new BN(getSize(formState.sizeB, formState.mintB, mintCache)),
-                      wallet
-                    );
-                  } catch (e) {
-                    return;
-                  }
-                }
-              }}
-            >
-              Trade
-            </Button>
-            </div>
-            : <div> </div>
-        )}
+        {displayActions(connection, wallet, formState, mintCache, isSeller, hasDelegate, hasValidDelegate, validAmount)}
       </div>
     </Box>
   );
