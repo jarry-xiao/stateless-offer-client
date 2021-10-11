@@ -1,6 +1,13 @@
 import React, { useMemo, useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import {
+  Select,
+  FormControl,
+  OutlinedInput,
+  InputLabel,
+  MenuItem,
+} from "@mui/material";
 import TextField from "@mui/material/TextField";
 import {
   cache,
@@ -21,7 +28,7 @@ import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 
-const displayMakerButton = () => {};
+const MINTS = { SOL: "So11111111111111111111111111111111111111112" };
 
 const getSize = (n: any, mint: any, mintCache: any) => {
   const dec = mintCache[mint].decimals;
@@ -77,9 +84,11 @@ const displayActions = (
   hasValidDelegate,
   validAmount
 ) => {
-  const mintEntered = (formState.mintA in mintCache) && (formState.mintB in mintCache);
+  const mintEntered =
+    formState.mintA in mintCache && formState.mintB in mintCache;
   const sizeA = parseFloat(formState.sizeA);
-  const sizeB = parseFloat(formState.sizeA);
+  const sizeB = parseFloat(formState.sizeB);
+  console.log(sizeA, sizeB)
   if (!mintEntered || sizeA <= 0 || sizeB <= 0) {
     return <div></div>;
   }
@@ -331,6 +340,9 @@ export function TransferBox() {
 
   const setField = (name: any) => {
     const setFieldWithName = (e) => {
+      if (!e.target.value) {
+        return;
+      }
       setFormState({ ...formState, [name]: e.target.value });
       let url = new URL(window.location.href);
       let params = new URLSearchParams(url.search.slice(1));
@@ -377,13 +389,28 @@ export function TransferBox() {
           value={getField("mintA")}
           onChange={setField("mintA")}
         />
-        <TextField
+        {/* <TextField
           required
           id="outlined-required"
           label="Buyer Mint"
           value={getField("mintB")}
           onChange={setField("mintB")}
-        />
+        /> */}
+        <FormControl>
+          <InputLabel id="buyer-mint">Buyer Mint</InputLabel>
+          <Select
+            sx={{ width: "50ch" }}
+            labelId="buyer-mint"
+            label="Buyer Mint"
+            value={getField("mintB")}
+            input={<OutlinedInput label="Buyer Mint" />}
+            onChange={setField("mintB")}
+          >
+            {Object.keys(MINTS).map((key, _) => (
+              <MenuItem value={MINTS[key]}>{key}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
         <TextField
           id="outlined-number"
           label="Seller Size"
