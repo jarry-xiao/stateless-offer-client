@@ -50,16 +50,26 @@ const getDelegate = async (formState: any, mintCache: any) => {
   }
 }
 
-export function TransferBox() {
-  const connection = useConnection();
-  const wallet = useWallet();
-  const [formState, setFormState] = useState({
+const getDefaultFormState = () => {
+  let url = new URL(window.location.href);
+  let params = new URLSearchParams(url.search.slice(1));
+  let defaultState = {
     mintA: "",
     mintB: "",
     sizeA: "0",
     sizeB: "0",
     maker: "",
-  });
+  };
+  for(const key of params.keys()) {
+    defaultState[key] = params.get(key);
+  }
+  return defaultState;
+}
+
+export function TransferBox() {
+  const connection = useConnection();
+  const wallet = useWallet();
+  const [formState, setFormState] = useState(getDefaultFormState());
   const [accountState, setAccountState] = useState({});
   const [mintCache, setMintCache] = useState({});
   const [isSeller, setIsSeller] = useState(false);
@@ -194,6 +204,10 @@ export function TransferBox() {
   const setField = (name: any) => {
     const setFieldWithName = (e) => {
       setFormState({ ...formState, [name]: e.target.value });
+      let url = new URL(window.location.href);
+      let params = new URLSearchParams(url.search.slice(1));
+      params.set(name, escape(e.target.value));  
+      window.location.search = params.toString();   
     };
     return setFieldWithName;
   };
