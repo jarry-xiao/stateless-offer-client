@@ -18,7 +18,6 @@ export const Settings = ({
 }) => {
   const { connected, disconnect, publicKey } = useWallet();
   const { endpoint, setEndpoint, env } = useConnectionConfig();
-  console.log(env);
   const { setVisible } = useWalletModal();
   const open = useCallback(() => setVisible(true), [setVisible]);
   const { setModal } = useModal();
