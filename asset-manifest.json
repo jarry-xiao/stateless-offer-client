@@ -1,0 +1,27 @@
+{
+  "files": {
+    "main.css": "/stateless-offer-client/static/css/main.389b4b4b.chunk.css",
+    "main.js": "/stateless-offer-client/static/js/main.54321de4.chunk.js",
+    "main.js.map": "/stateless-offer-client/static/js/main.54321de4.chunk.js.map",
+    "runtime-main.js": "/stateless-offer-client/static/js/runtime-main.0b56f4d3.js",
+    "runtime-main.js.map": "/stateless-offer-client/static/js/runtime-main.0b56f4d3.js.map",
+    "static/css/2.0b038ad9.chunk.css": "/stateless-offer-client/static/css/2.0b038ad9.chunk.css",
+    "static/js/2.11918ec2.chunk.js": "/stateless-offer-client/static/js/2.11918ec2.chunk.js",
+    "static/js/2.11918ec2.chunk.js.map": "/stateless-offer-client/static/js/2.11918ec2.chunk.js.map",
+    "static/js/3.5ec6c255.chunk.js": "/stateless-offer-client/static/js/3.5ec6c255.chunk.js",
+    "static/js/3.5ec6c255.chunk.js.map": "/stateless-offer-client/static/js/3.5ec6c255.chunk.js.map",
+    "index.html": "/stateless-offer-client/index.html",
+    "static/css/2.0b038ad9.chunk.css.map": "/stateless-offer-client/static/css/2.0b038ad9.chunk.css.map",
+    "static/css/main.389b4b4b.chunk.css.map": "/stateless-offer-client/static/css/main.389b4b4b.chunk.css.map",
+    "static/js/2.11918ec2.chunk.js.LICENSE.txt": "/stateless-offer-client/static/js/2.11918ec2.chunk.js.LICENSE.txt",
+    "static/media/index.css": "/stateless-offer-client/static/media/sora-latin-ext-400-normal.b6e3517b.woff2",
+    "static/media/wallet.c746d144.less": "/stateless-offer-client/static/media/wallet.c746d144.less"
+  },
+  "entrypoints": [
+    "static/js/runtime-main.0b56f4d3.js",
+    "static/css/2.0b038ad9.chunk.css",
+    "static/js/2.11918ec2.chunk.js",
+    "static/css/main.389b4b4b.chunk.css",
+    "static/js/main.54321de4.chunk.js"
+  ]
+}
