@@ -207,7 +207,8 @@ export function TransferBox() {
       let url = new URL(window.location.href);
       let params = new URLSearchParams(url.search.slice(1));
       params.set(name, escape(e.target.value));  
-      window.location.search = params.toString();   
+      let newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + "?" + params.toString();   
+      window.history.pushState({path: newUrl}, '', newUrl);
     };
     return setFieldWithName;
   };
