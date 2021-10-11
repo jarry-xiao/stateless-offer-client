@@ -32,8 +32,8 @@ function App() {
         <Header />
         <Box
           sx={{
-            marginTop: "15%",
             width: 600,
+            py: "10%",
             px: "50%",
             display: "flex",
             alignSelf: "center",
