@@ -23,16 +23,24 @@ import { useWallet } from "@solana/wallet-adapter-react";
 
 const displayMakerButton = () => { };
 
-const getDelegate = async (formState: any) => {
+const getSize = (n : any, mint: any, mintCache: any) => {
+  const dec = mintCache[mint].decimals;
+  const size = Math.floor(parseFloat(n) * Math.pow(10, dec));
+  return size;
+}
+
+const getDelegate = async (formState: any, mintCache: any) => {
   try {
+    const sizeA = getSize(formState.sizeA, formState.mintA, mintCache);
+    const sizeB = getSize(formState.sizeB, formState.mintB, mintCache);
     return (await PublicKey.findProgramAddress(
       [
         Buffer.from("stateless_offer"),
         (new PublicKey(formState.maker)).toBuffer(),
         (new PublicKey(formState.mintA)).toBuffer(),
         (new PublicKey(formState.mintB)).toBuffer(),
-        new Uint8Array((new BN(parseFloat(formState.sizeA))).toArray("le", 8)),
-        new Uint8Array((new BN(parseFloat(formState.sizeB))).toArray("le", 8)),
+        new Uint8Array((new BN(sizeA)).toArray("le", 8)),
+        new Uint8Array((new BN(sizeB)).toArray("le", 8)),
       ],
       new PublicKey("61FqXyzpmGLf8tMTjHbaL1fUwM277tMJEV7dyPsySaa6")
     ))[0];
@@ -105,9 +113,12 @@ export function TransferBox() {
           }
         }
 
-        const delegate = await getDelegate(formState);
-        if (tokenAccount.delegate && delegate && tokenAccount.delegateOption != 0 && delegate.toBase58() === tokenAccount.delegate) {
+        const delegate = await getDelegate(formState, mintCache);
+        if (tokenAccount.delegate && delegate && tokenAccount.delegateOption != 0 && delegate.toBase58() === tokenAccount.delegate.toBase58()) {
           setHasDelegate(true);
+        }
+        else{
+          setHasDelegate(false);
         }
       }
       subId = connection.onAccountChange(sellerTokenAccount, async (result) => {
@@ -120,7 +131,7 @@ export function TransferBox() {
             const mint = tokenAccount.mint.toBase58();
             if (mint in mintCache) {
               const dec = mintCache[mint].decimals;
-              const totalAmount = tokenAccount.amount * Math.pow(10, -dec);
+              const totalAmount = tokenAccount.amount;
               try {
                 const size = parseFloat(formState.sizeA);
                 setValidAmount(totalAmount >= size && size > 0);
@@ -130,9 +141,12 @@ export function TransferBox() {
               }
             }
 
-            const delegate = await getDelegate(formState);
-            if (tokenAccount.delegate && delegate && tokenAccount.delegateOption != 0 && delegate.toBase58() === tokenAccount.delegate) {
+            const delegate = await getDelegate(formState, mintCache);
+            if (tokenAccount.delegate && delegate && tokenAccount.delegateOption != 0 && delegate.toBase58() === tokenAccount.delegate.toBase58()) {
               setHasDelegate(true);
+            }
+            else{
+              setHasDelegate(false);
             }
           } catch (e) {
             console.log("Failed to deserialize account", e);
@@ -171,7 +185,7 @@ export function TransferBox() {
     return () => {
       if (subId) connection.removeAccountChangeListener(subId);
     };
-  }, [formState, wallet, setAccountState, setMintCache]);
+  }, [formState, mintCache, wallet, setAccountState, setMintCache]);
 
   useEffect(() => console.log(mintCache), [mintCache]);
 
@@ -254,8 +268,8 @@ export function TransferBox() {
                       connection,
                       new PublicKey(formState.mintA),
                       new PublicKey(formState.mintB),
-                      new BN(parseInt(formState.sizeA)),
-                      new BN(parseInt(formState.sizeB)),
+                      new BN(getSize(formState.sizeA, formState.mintA, mintCache)),
+                      new BN(getSize(formState.sizeB, formState.mintB, mintCache)),
                       wallet
                     );
                   } catch (e) {
@@ -278,8 +292,8 @@ export function TransferBox() {
                       connection,
                       new PublicKey(formState.mintA),
                       new PublicKey(formState.mintB),
-                      new BN(parseInt(formState.sizeA)),
-                      new BN(parseInt(formState.sizeB)),
+                      new BN(getSize(formState.sizeA, formState.mintA, mintCache)),
+                      new BN(getSize(formState.sizeB, formState.mintB, mintCache)),
                       wallet,
                       false
                     );
@@ -306,8 +320,8 @@ export function TransferBox() {
                       new PublicKey(formState.maker),
                       new PublicKey(formState.mintA),
                       new PublicKey(formState.mintB),
-                      new BN(parseInt(formState.sizeA)),
-                      new BN(parseInt(formState.sizeB)),
+                      new BN(getSize(formState.sizeA, formState.mintA, mintCache)),
+                      new BN(getSize(formState.sizeB, formState.mintB, mintCache)),
                       wallet
                     );
                   } catch (e) {
