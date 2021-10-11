@@ -77,32 +77,44 @@ const displayActions = (
   hasValidDelegate,
   validAmount
 ) => {
+  const mintEntered = (formState.mintA in mintCache) && (formState.mintB in mintCache);
+  const sizeA = parseFloat(formState.sizeA);
+  const sizeB = parseFloat(formState.sizeA);
+  if (!mintEntered || sizeA <= 0 || sizeB <= 0) {
+    return <div></div>;
+  }
   if (isSeller) {
     return (
       <div>
-        <Button
-          variant="contained"
-          onClick={() => {
-            if (formState) {
-              try {
-                changeOffer(
-                  connection,
-                  new PublicKey(formState.mintA),
-                  new PublicKey(formState.mintB),
-                  new BN(getSize(formState.sizeA, formState.mintA, mintCache)),
-                  new BN(getSize(formState.sizeB, formState.mintB, mintCache)),
-                  wallet
-                );
-              } catch (e) {
-                return;
+        {validAmount && (
+          <Button
+            variant="contained"
+            onClick={() => {
+              if (formState) {
+                try {
+                  changeOffer(
+                    connection,
+                    new PublicKey(formState.mintA),
+                    new PublicKey(formState.mintB),
+                    new BN(
+                      getSize(formState.sizeA, formState.mintA, mintCache)
+                    ),
+                    new BN(
+                      getSize(formState.sizeB, formState.mintB, mintCache)
+                    ),
+                    wallet
+                  );
+                } catch (e) {
+                  return;
+                }
               }
-            }
-          }}
-          sx={{ marginRight: "4px" }}
-        >
-          Open Offer
-        </Button>
-        {hasDelegate ? (
+            }}
+            sx={{ marginRight: "4px" }}
+          >
+            Open Offer
+          </Button>
+        )}
+        {hasDelegate && (
           <Button
             variant="contained"
             color="error"
@@ -131,8 +143,6 @@ const displayActions = (
           >
             Close Offer
           </Button>
-        ) : (
-          <div></div>
         )}
       </div>
     );
@@ -396,7 +406,16 @@ export function TransferBox() {
         />
       </div>
       <div style={{ marginTop: "10px" }}>
-        {displayActions(connection, wallet, formState, mintCache, isSeller, hasDelegate, hasValidDelegate, validAmount)}
+        {displayActions(
+          connection,
+          wallet,
+          formState,
+          mintCache,
+          isSeller,
+          hasDelegate,
+          hasValidDelegate,
+          validAmount
+        )}
       </div>
     </Box>
   );
