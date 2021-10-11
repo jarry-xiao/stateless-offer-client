@@ -42,7 +42,7 @@ const getDelegate = async (formState: any, mintCache: any) => {
         new Uint8Array((new BN(sizeA)).toArray("le", 8)),
         new Uint8Array((new BN(sizeB)).toArray("le", 8)),
       ],
-      new PublicKey("61FqXyzpmGLf8tMTjHbaL1fUwM277tMJEV7dyPsySaa6")
+      new PublicKey("SAtnofysr9Uxk7m9YphxwfL5E3wyZJWUzjwA29Gw3tQ")
     ))[0];
   }
   catch {

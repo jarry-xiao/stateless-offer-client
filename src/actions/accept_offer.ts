@@ -17,7 +17,7 @@ import { TOKEN_PROGRAM_ID, Token, NATIVE_MINT } from "@solana/spl-token";
 
 // Hard-coded devnet key for now
 export const PROGRAM_ID = new PublicKey(
-  "61FqXyzpmGLf8tMTjHbaL1fUwM277tMJEV7dyPsySaa6"
+  "SAtnofysr9Uxk7m9YphxwfL5E3wyZJWUzjwA29Gw3tQ"
 );
 
 export class AcceptOfferArgs {
