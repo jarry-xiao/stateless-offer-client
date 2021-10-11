@@ -28,7 +28,10 @@ import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 
-const MINTS = { SOL: "So11111111111111111111111111111111111111112" };
+const MINTS = {
+  SOL: "So11111111111111111111111111111111111111112",
+  USDC: "BXXkv6z8ykpG1yuvUDPgh732wzVHB69RnB9YgSYh3itW",
+};
 
 const getSize = (n: any, mint: any, mintCache: any) => {
   const dec = mintCache[mint].decimals;
@@ -88,7 +91,6 @@ const displayActions = (
     formState.mintA in mintCache && formState.mintB in mintCache;
   const sizeA = parseFloat(formState.sizeA);
   const sizeB = parseFloat(formState.sizeB);
-  console.log(sizeA, sizeB)
   if (!mintEntered || sizeA <= 0 || sizeB <= 0) {
     return <div></div>;
   }
@@ -213,6 +215,44 @@ export function TransferBox() {
   }, [formState, wallet, setIsSeller]);
 
   useEffect(() => {
+    const validate = async () => {
+      const tokenAccount: any = accountState;
+      if (!tokenAccount.mint) {
+        return;
+      }
+      const mint = tokenAccount.mint.toBase58();
+      if (mint in mintCache) {
+        const dec = mintCache[mint].decimals;
+        const totalAmount = tokenAccount.amount * Math.pow(10, -dec);
+        try {
+          const size = parseFloat(formState.sizeA);
+          setValidAmount(totalAmount >= size && size > 0);
+        } catch {
+          console.log("Not a valid float");
+        }
+      }
+
+      const delegate = await getDelegate(formState, mintCache);
+      setHasDelegate(tokenAccount.delegateOption != 0);
+      if (
+        tokenAccount.delegate &&
+        delegate &&
+        tokenAccount.delegateOption != 0 &&
+        delegate.toBase58() === tokenAccount.delegate.toBase58()
+      ) {
+        setHasValidDelegate(true);
+      } else {
+        setHasValidDelegate(false);
+      }
+    };
+    validate();
+  }, [
+    accountState,
+    mintCache,
+    formState,
+  ]);
+
+  useEffect(() => {
     let subId;
     const fetchAccountState = async () => {
       let sellerWallet;
@@ -235,34 +275,10 @@ export function TransferBox() {
       )[0];
       const result = await connection.getAccountInfo(sellerTokenAccount);
       if (result) {
-        console.log("Received account data");
         const tokenAccount = deserializeAccount(result.data);
+        console.log(formState);
         console.log(tokenAccount);
         setAccountState(tokenAccount);
-        const mint = tokenAccount.mint.toBase58();
-        if (mint in mintCache) {
-          const dec = mintCache[mint].decimals;
-          const totalAmount = tokenAccount.amount * Math.pow(10, -dec);
-          try {
-            const size = parseFloat(formState.sizeA);
-            setValidAmount(totalAmount >= size && size > 0);
-          } catch {
-            console.log("Not a valid float");
-          }
-        }
-
-        const delegate = await getDelegate(formState, mintCache);
-        setHasDelegate(tokenAccount.delegateOption != 0);
-        if (
-          tokenAccount.delegate &&
-          delegate &&
-          tokenAccount.delegateOption != 0 &&
-          delegate.toBase58() === tokenAccount.delegate.toBase58()
-        ) {
-          setHasValidDelegate(true);
-        } else {
-          setHasValidDelegate(false);
-        }
       }
       subId = connection.onAccountChange(sellerTokenAccount, async (result) => {
         if (result) {
@@ -270,37 +286,19 @@ export function TransferBox() {
           try {
             const tokenAccount = deserializeAccount(result.data);
             setAccountState(tokenAccount);
-            console.log(accountState);
-            const mint = tokenAccount.mint.toBase58();
-            if (mint in mintCache) {
-              const dec = mintCache[mint].decimals;
-              const totalAmount = tokenAccount.amount;
-              try {
-                const size = parseFloat(formState.sizeA);
-                setValidAmount(totalAmount >= size && size > 0);
-              } catch {
-                console.log("Not a valid float");
-              }
-            }
-
-            setHasDelegate(tokenAccount.delegateOption != 0);
-            const delegate = await getDelegate(formState, mintCache);
-            if (
-              tokenAccount.delegate &&
-              delegate &&
-              tokenAccount.delegateOption != 0 &&
-              delegate.toBase58() === tokenAccount.delegate.toBase58()
-            ) {
-              setHasValidDelegate(true);
-            } else {
-              setHasValidDelegate(false);
-            }
           } catch (e) {
             console.log("Failed to deserialize account", e);
           }
         }
       });
     };
+    fetchAccountState();
+    return () => {
+      if (subId) connection.removeAccountChangeListener(subId);
+    };
+  }, [formState.maker, formState.mintA, connection, setAccountState]);
+
+  useEffect(() => {
     const fetchMintState = async () => {
       let mint;
       for (const mintString of [formState.mintA, formState.mintB]) {
@@ -319,7 +317,6 @@ export function TransferBox() {
                 ...mintCache,
                 [mintString]: mintData,
               });
-              console.log(mintCache);
             } catch {
               console.log("Invalid Mint");
             }
@@ -327,22 +324,11 @@ export function TransferBox() {
         }
       }
     };
-    fetchAccountState();
     fetchMintState();
-    return () => {
-      if (subId) connection.removeAccountChangeListener(subId);
-    };
-  }, [formState, mintCache, wallet, setAccountState, setMintCache]);
-
-  useEffect(() => console.log(mintCache), [mintCache]);
-
-  useEffect(() => {}, [formState]);
+  }, [mintCache, formState.mintA, formState.mintB, connection]);
 
   const setField = (name: any) => {
     const setFieldWithName = (e) => {
-      if (!e.target.value) {
-        return;
-      }
       setFormState({ ...formState, [name]: e.target.value });
       let url = new URL(window.location.href);
       let params = new URLSearchParams(url.search.slice(1));
@@ -406,7 +392,7 @@ export function TransferBox() {
             input={<OutlinedInput label="Buyer Mint" />}
             onChange={setField("mintB")}
           >
-            {Object.keys(MINTS).map((key, _) => (
+            {Object.keys(MINTS).map((key) => (
               <MenuItem value={MINTS[key]}>{key}</MenuItem>
             ))}
           </Select>
