@@ -194,8 +194,8 @@ export const changeOffer = async (
   const [transferAuthority, bump] = await PublicKey.findProgramAddress(
     [
       Buffer.from("stateless_offer"),
-      tokenAccountMintA.toBuffer(),
-      tokenAccountMintB.toBuffer(),
+      wallet.publicKey.toBuffer(),
+      mintA.toBuffer(),
       mintB.toBuffer(),
       new Uint8Array(sizeA.toArray("le", 8)),
       new Uint8Array(sizeB.toArray("le", 8)),
@@ -323,8 +323,8 @@ export const trade = async (
   const [transferAuthority, bump] = await PublicKey.findProgramAddress(
     [
       Buffer.from("stateless_offer"),
-      makerAccountMintA.toBuffer(),
-      makerAccountMintB.toBuffer(),
+      maker.toBuffer(),
+      mintA.toBuffer(),
       mintB.toBuffer(),
       new Uint8Array(sizeA.toArray("le", 8)),
       new Uint8Array(sizeB.toArray("le", 8)),

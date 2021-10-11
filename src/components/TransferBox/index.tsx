@@ -21,7 +21,26 @@ import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 
-const displayMakerButton = () => {};
+const displayMakerButton = () => { };
+
+const getDelegate = async (formState: any) => {
+  try {
+    return (await PublicKey.findProgramAddress(
+      [
+        Buffer.from("stateless_offer"),
+        (new PublicKey(formState.maker)).toBuffer(),
+        (new PublicKey(formState.mintA)).toBuffer(),
+        (new PublicKey(formState.mintB)).toBuffer(),
+        new Uint8Array((new BN(parseFloat(formState.sizeA))).toArray("le", 8)),
+        new Uint8Array((new BN(parseFloat(formState.sizeB))).toArray("le", 8)),
+      ],
+      new PublicKey("61FqXyzpmGLf8tMTjHbaL1fUwM277tMJEV7dyPsySaa6")
+    ))[0];
+  }
+  catch {
+    return null;
+  }
+}
 
 export function TransferBox() {
   const connection = useConnection();
@@ -36,6 +55,8 @@ export function TransferBox() {
   const [accountState, setAccountState] = useState({});
   const [mintCache, setMintCache] = useState({});
   const [isSeller, setIsSeller] = useState(false);
+  const [validAmount, setValidAmount] = useState(false);
+  const [hasDelegate, setHasDelegate] = useState(false);
 
   useEffect(() => {
     if (!wallet) {
@@ -69,15 +90,50 @@ export function TransferBox() {
       if (result) {
         console.log("Received account data");
         const tokenAccount = deserializeAccount(result.data);
+        console.log(tokenAccount);
         setAccountState(tokenAccount);
+        const mint = tokenAccount.mint.toBase58();
+        if (mint in mintCache) {
+          const dec = mintCache[mint].decimals;
+          const totalAmount = tokenAccount.amount * Math.pow(10, -dec);
+          try {
+            const size = parseFloat(formState.sizeA);
+            setValidAmount(totalAmount >= size && size > 0);
+          }
+          catch {
+            console.log("Not a valid float");
+          }
+        }
+
+        const delegate = await getDelegate(formState);
+        if (tokenAccount.delegate && delegate && tokenAccount.delegateOption != 0 && delegate.toBase58() === tokenAccount.delegate) {
+          setHasDelegate(true);
+        }
       }
-      subId = connection.onAccountChange(sellerTokenAccount, (result) => {
+      subId = connection.onAccountChange(sellerTokenAccount, async (result) => {
         if (result) {
           console.log("Received account data");
           try {
             const tokenAccount = deserializeAccount(result.data);
             setAccountState(tokenAccount);
             console.log(accountState);
+            const mint = tokenAccount.mint.toBase58();
+            if (mint in mintCache) {
+              const dec = mintCache[mint].decimals;
+              const totalAmount = tokenAccount.amount * Math.pow(10, -dec);
+              try {
+                const size = parseFloat(formState.sizeA);
+                setValidAmount(totalAmount >= size && size > 0);
+              }
+              catch {
+                console.log("Not a valid float");
+              }
+            }
+
+            const delegate = await getDelegate(formState);
+            if (tokenAccount.delegate && delegate && tokenAccount.delegateOption != 0 && delegate.toBase58() === tokenAccount.delegate) {
+              setHasDelegate(true);
+            }
           } catch (e) {
             console.log("Failed to deserialize account", e);
           }
@@ -87,12 +143,10 @@ export function TransferBox() {
     const fetchMintState = async () => {
       let mint;
       for (const mintString of [formState.mintA, formState.mintB]) {
-        console.log("processing mint", mintString);
         try {
           mint = new PublicKey(mintString);
-        } catch(e) {
+        } catch (e) {
           console.log("Invalid Pubkey");
-          console.log(formState)
           continue;
         }
         if (!(mint.toBase58() in mintCache)) {
@@ -100,7 +154,6 @@ export function TransferBox() {
           if (result) {
             try {
               const mintData = deserializeMint(result.data)
-              console.log("MINT DATA", mintData);
               setMintCache({
                 ...mintCache,
                 [mintString]: mintData,
@@ -110,12 +163,9 @@ export function TransferBox() {
               console.log("Invalid Mint");
             }
           }
-        } else {
-          console.log(mintCache[mintString]);
         }
       }
     };
-    console.log(mintCache)
     fetchAccountState();
     fetchMintState();
     return () => {
@@ -123,7 +173,9 @@ export function TransferBox() {
     };
   }, [formState, wallet, setAccountState, setMintCache]);
 
-  useEffect(() => {}, [formState]);
+  useEffect(() => console.log(mintCache), [mintCache]);
+
+  useEffect(() => { }, [formState]);
 
   const setField = (name: any) => {
     const setFieldWithName = (e) => {
@@ -240,7 +292,8 @@ export function TransferBox() {
               Close Offer
             </Button>
           </div>
-        ) : (
+        ) : ( 
+          (hasDelegate && validAmount) ? 
           <div>
             <Button
               variant="contained"
@@ -265,7 +318,8 @@ export function TransferBox() {
             >
               Trade
             </Button>
-          </div>
+            </div>
+            : <div> </div>
         )}
       </div>
     </Box>
