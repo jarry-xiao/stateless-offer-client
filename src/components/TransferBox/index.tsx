@@ -420,7 +420,8 @@ export function TransferBox() {
           component="form"
           sx={{
             "& .MuiTextField-root": { m: 1, width: "60ch" },
-            justifyContent: "center"
+            justifyContent: "center",
+            marginBottom: "5px",
           }}
           noValidate
           autoComplete="on"
@@ -436,9 +437,9 @@ export function TransferBox() {
                   }
                 }
               }
-            } sx={{ width: "20ch" }} variant="outlined"
+            } sx={{ width: "30ch" }} variant="outlined"
           >
-            Seller Mint
+            Seller Mint (Explorer)
           </LoadingButton>
           <LoadingButton
             onClick={
@@ -451,9 +452,9 @@ export function TransferBox() {
                   }
                 }
               }
-            } sx={{ width: "20ch" }} variant="outlined"
+            } sx={{ width: "30ch" }} variant="outlined"
           >
-            Buyer Mint
+            Buyer Mint (Explorer)
           </LoadingButton>
         </Box>
       </div>
