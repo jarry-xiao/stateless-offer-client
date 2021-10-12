@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import {
@@ -7,6 +7,8 @@ import {
   OutlinedInput,
   InputLabel,
   MenuItem,
+  Menu,
+  Input,
 } from "@mui/material";
 import TextField from "@mui/material/TextField";
 import {
@@ -14,6 +16,7 @@ import {
   useConnection,
   deserializeAccount,
   deserializeMint,
+  useConnectionConfig,
 } from "../../contexts";
 import { FormControlUnstyled } from "@mui/material";
 import {
@@ -27,11 +30,16 @@ import { changeOffer, trade } from "../../actions/accept_offer";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import { useWallet } from "@solana/wallet-adapter-react";
+import tokenlist, { ENV, TokenInfo, TokenListProvider } from "@solana/spl-token-registry";
 
-const MINTS = {
-  SOL: "So11111111111111111111111111111111111111112",
-  USDC: "BXXkv6z8ykpG1yuvUDPgh732wzVHB69RnB9YgSYh3itW",
-};
+const MINTS = [
+  "None",
+  "SOL",
+  "USDC",
+  "USDT",
+  "BTC",
+  "ETH",
+]
 
 const getSize = (n: any, mint: any, mintCache: any) => {
   const dec = mintCache[mint].decimals;
@@ -199,6 +207,7 @@ const displayActions = (
 export function TransferBox() {
   const connection = useConnection();
   const wallet = useWallet();
+  const {env} = useConnectionConfig();
   const [formState, setFormState] = useState(getDefaultFormState());
   const [accountState, setAccountState] = useState({});
   const [mintCache, setMintCache] = useState({});
@@ -206,6 +215,33 @@ export function TransferBox() {
   const [validAmount, setValidAmount] = useState(false);
   const [hasDelegate, setHasDelegate] = useState(false);
   const [hasValidDelegate, setHasValidDelegate] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState(null);
+
+  const [tokenMap, setTokenMap] = useState<Map<string, TokenInfo>>(new Map());
+
+  useEffect(() => {
+    new TokenListProvider().resolve().then(tokens => {
+      let tokenList;
+      if (env === "devnet") {
+        tokenList = tokens.filterByChainId(ENV.Devnet).getList();
+      }
+      else if (env === "mainnet-beta") {
+        tokenList = tokens.filterByChainId(ENV.MainnetBeta).getList();
+      }
+      else if (env === "testnet") {
+        tokenList = tokens.filterByChainId(ENV.Testnet).getList();
+      }
+      setTokenMap(tokenList.reduce((map, item) => {
+        map.set(item.symbol, item);
+        return map;
+      }, new Map()));
+    });
+  }, [setTokenMap, env]);
+
+  // useEffect(() => {
+  //   console.log(tokenMap)
+  // }, [tokenMap, env]);
 
   useEffect(() => {
     if (!wallet) {
@@ -351,11 +387,37 @@ export function TransferBox() {
     }
   };
 
+  const handleEnter = (e) => {
+    if (e.key === "Enter") {
+      setOpen(false);
+      console.log(e.key)
+    }
+  }
+
+  const getTokenKeys = (tokenMap) => {
+    // for (const mint of MINTS) {
+    //   console.log(tokenMap.get(mint))
+    // }
+    let keys: any[] = []
+    keys.push(<Input onKeyPress = {handleEnter} sx={{marginLeft: "20px"}} value={getField("mintB")} onChange={setField("mintB")}></Input>)
+    for (const mint of MINTS) {
+      if (!tokenMap.get(mint)) {
+        if (mint === "None") {
+          keys.push(<MenuItem value="">{mint}</MenuItem>);
+        }
+        continue
+      }
+      keys.push(<MenuItem value={tokenMap.get(mint).address}>{mint}</MenuItem>
+      )
+    }
+    return keys;
+  }
+
   return (
     <Box
       component="form"
       sx={{
-        "& .MuiTextField-root": { m: 1, width: "50ch" },
+        "& .MuiTextField-root": { m: 1, width: "60ch" },
       }}
       noValidate
       autoComplete="on"
@@ -385,16 +447,17 @@ export function TransferBox() {
         <FormControl>
           <InputLabel id="buyer-mint">Buyer Mint</InputLabel>
           <Select
-            sx={{ width: "50ch" }}
+            sx={{ textAlign: "left", width: "60ch" }}
             labelId="buyer-mint"
-            label="Buyer Mint"
             value={getField("mintB")}
             input={<OutlinedInput label="Buyer Mint" />}
             onChange={setField("mintB")}
+            open={open}
+            onClose={(e) => {setOpen(false)}}
+            onOpen={(e) => {console.log("opening"); setOpen(true)}}
+            renderValue={(selected) => {return selected;}}
           >
-            {Object.keys(MINTS).map((key) => (
-              <MenuItem value={MINTS[key]}>{key}</MenuItem>
-            ))}
+            {getTokenKeys(tokenMap)}
           </Select>
         </FormControl>
         <TextField

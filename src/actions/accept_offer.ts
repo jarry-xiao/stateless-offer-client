@@ -359,6 +359,7 @@ export const trade = async (
     notify({ message: "Trade transaction failed" });
     return false;
   } else {
+    notify({ message: "Trade successful" });
     return true;
   }
 };
