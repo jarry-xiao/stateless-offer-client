@@ -97,8 +97,8 @@ const displayActions = (
 ) => {
   const mintEntered =
     formState.mintA in mintCache && formState.mintB in mintCache;
-  const sizeA = parseFloat(formState.sizeA);
-  const sizeB = parseFloat(formState.sizeB);
+  const sizeA = getSize(formState.sizeA, formState.mintA, mintCache);
+  const sizeB = getSize(formState.sizeB, formState.mintB, mintCache);
   if (!mintEntered || sizeA <= 0 || sizeB <= 0) {
     return <div></div>;
   }
@@ -116,10 +116,10 @@ const displayActions = (
                     new PublicKey(formState.mintA),
                     new PublicKey(formState.mintB),
                     new BN(
-                      getSize(formState.sizeA, formState.mintA, mintCache)
+                      sizeA
                     ),
                     new BN(
-                      getSize(formState.sizeB, formState.mintB, mintCache)
+                      sizeB
                     ),
                     wallet
                   );
