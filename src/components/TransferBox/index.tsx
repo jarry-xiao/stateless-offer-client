@@ -9,7 +9,7 @@ import {
   MenuItem,
   Input,
 } from "@mui/material";
-import LoadingButton from '@mui/lab/LoadingButton';
+import LoadingButton from "@mui/lab/LoadingButton";
 import TextField from "@mui/material/TextField";
 import {
   cache,
@@ -30,21 +30,22 @@ import { changeOffer, trade } from "../../actions/accept_offer";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import { useWallet } from "@solana/wallet-adapter-react";
-import tokenlist, { ENV, TokenInfo, TokenListProvider } from "@solana/spl-token-registry";
+import tokenlist, {
+  ENV,
+  TokenInfo,
+  TokenListProvider,
+} from "@solana/spl-token-registry";
 
-const MINTS = [
-  "None",
-  "SOL",
-  "USDC",
-  "USDT",
-  "BTC",
-  "ETH",
-]
+const MINTS = ["None", "SOL", "USDC", "USDT", "BTC", "ETH"];
 
 const getSize = (n: any, mint: any, mintCache: any) => {
-  const dec = mintCache[mint].decimals;
-  const size = Math.floor(parseFloat(n) * Math.pow(10, dec));
-  return size;
+  try {
+    const dec = mintCache[mint].decimals;
+    const size = Math.floor(parseFloat(n) * Math.pow(10, dec));
+    return size;
+  } catch {
+    return 0;
+  }
 };
 
 const getDelegate = async (formState: any, mintCache: any) => {
@@ -115,12 +116,8 @@ const displayActions = (
                     connection,
                     new PublicKey(formState.mintA),
                     new PublicKey(formState.mintB),
-                    new BN(
-                      sizeA
-                    ),
-                    new BN(
-                      sizeB
-                    ),
+                    new BN(sizeA),
+                    new BN(sizeB),
                     wallet
                   );
                 } catch (e) {
@@ -221,21 +218,21 @@ export function TransferBox() {
   const [tokenMap, setTokenMap] = useState<Map<string, TokenInfo>>(new Map());
 
   useEffect(() => {
-    new TokenListProvider().resolve().then(tokens => {
+    new TokenListProvider().resolve().then((tokens) => {
       let tokenList;
       if (env === "devnet") {
         tokenList = tokens.filterByChainId(ENV.Devnet).getList();
-      }
-      else if (env === "mainnet-beta") {
+      } else if (env === "mainnet-beta") {
         tokenList = tokens.filterByChainId(ENV.MainnetBeta).getList();
-      }
-      else if (env === "testnet") {
+      } else if (env === "testnet") {
         tokenList = tokens.filterByChainId(ENV.Testnet).getList();
       }
-      setTokenMap(tokenList.reduce((map, item) => {
-        map.set(item.symbol, item);
-        return map;
-      }, new Map()));
+      setTokenMap(
+        tokenList.reduce((map, item) => {
+          map.set(item.symbol, item);
+          return map;
+        }, new Map())
+      );
     });
   }, [setTokenMap, env]);
 
@@ -282,11 +279,7 @@ export function TransferBox() {
       }
     };
     validate();
-  }, [
-    accountState,
-    mintCache,
-    formState,
-  ]);
+  }, [accountState, mintCache, formState]);
 
   useEffect(() => {
     let subId;
@@ -390,28 +383,31 @@ export function TransferBox() {
   const handleEnter = (e) => {
     if (e.key === "Enter") {
       setOpen(false);
-      console.log(e.key)
+      console.log(e.key);
     }
-  }
+  };
 
   const getTokenKeys = (tokenMap) => {
-    // for (const mint of MINTS) {
-    //   console.log(tokenMap.get(mint))
-    // }
-    let keys: any[] = []
-    keys.push(<Input onKeyPress={handleEnter} sx={{ marginLeft: "20px" }} value={getField("mintB")} onChange={setField("mintB")}></Input>)
+    let keys: any[] = [];
+    keys.push(
+      <Input
+        onKeyPress={handleEnter}
+        sx={{ marginLeft: "20px" }}
+        value={getField("mintB")}
+        onChange={setField("mintB")}
+      ></Input>
+    );
     for (const mint of MINTS) {
       if (!tokenMap.get(mint)) {
         if (mint === "None") {
           keys.push(<MenuItem value="">{mint}</MenuItem>);
         }
-        continue
+        continue;
       }
-      keys.push(<MenuItem value={tokenMap.get(mint).address}>{mint}</MenuItem>
-      )
+      keys.push(<MenuItem value={tokenMap.get(mint).address}>{mint}</MenuItem>);
     }
     return keys;
-  }
+  };
 
   return (
     <div>
@@ -427,32 +423,32 @@ export function TransferBox() {
           autoComplete="on"
         >
           <LoadingButton
-            onClick={
-              () => {
-                if (env && formState && formState.mintA) {
-                  let url = `https://explorer.solana.com/address/${formState.mintA}?cluster=${env}`;
-                  const w = window.open(url, '_blank');
-                  if (w) {
-                    w.focus();
-                  }
+            onClick={() => {
+              if (env && formState && formState.mintA) {
+                let url = `https://explorer.solana.com/address/${formState.mintA}?cluster=${env}`;
+                const w = window.open(url, "_blank");
+                if (w) {
+                  w.focus();
                 }
               }
-            } sx={{ width: "30ch" }} variant="outlined"
+            }}
+            sx={{ width: "30ch" }}
+            variant="outlined"
           >
             Seller Mint (Explorer)
           </LoadingButton>
           <LoadingButton
-            onClick={
-              () => {
-                if (env && formState && formState.mintB) {
-                  let url = `https://explorer.solana.com/address/${formState.mintB}?cluster=${env}`;
-                  const w = window.open(url, '_blank');
-                  if (w) {
-                    w.focus();
-                  }
+            onClick={() => {
+              if (env && formState && formState.mintB) {
+                let url = `https://explorer.solana.com/address/${formState.mintB}?cluster=${env}`;
+                const w = window.open(url, "_blank");
+                if (w) {
+                  w.focus();
                 }
               }
-            } sx={{ width: "30ch" }} variant="outlined"
+            }}
+            sx={{ width: "30ch" }}
+            variant="outlined"
           >
             Buyer Mint (Explorer)
           </LoadingButton>
@@ -482,25 +478,29 @@ export function TransferBox() {
               value={getField("mintA")}
               onChange={setField("mintA")}
             />
-            {/* <TextField
-          required
-          id="outlined-required"
-          label="Buyer Mint"
-          value={getField("mintB")}
-          onChange={setField("mintB")}
-        /> */}
             <FormControl>
               <InputLabel id="buyer-mint">Buyer Mint</InputLabel>
               <Select
-                sx={{ display: "inline-block", textAlign: "left", width: "60ch" }}
+                sx={{
+                  display: "inline-block",
+                  textAlign: "left",
+                  width: "60ch",
+                }}
                 labelId="buyer-mint"
                 value={getField("mintB")}
                 input={<OutlinedInput label="Buyer Mint" />}
                 onChange={setField("mintB")}
                 open={open}
-                onClose={(e) => { setOpen(false) }}
-                onOpen={(e) => { console.log("opening"); setOpen(true) }}
-                renderValue={(selected) => { return selected; }}
+                onClose={(e) => {
+                  setOpen(false);
+                }}
+                onOpen={(e) => {
+                  console.log("opening");
+                  setOpen(true);
+                }}
+                renderValue={(selected) => {
+                  return selected;
+                }}
               >
                 {getTokenKeys(tokenMap)}
               </Select>
