@@ -207,7 +207,7 @@ const displayActions = (
 export function TransferBox() {
   const connection = useConnection();
   const wallet = useWallet();
-  const {env} = useConnectionConfig();
+  const { env } = useConnectionConfig();
   const [formState, setFormState] = useState(getDefaultFormState());
   const [accountState, setAccountState] = useState({});
   const [mintCache, setMintCache] = useState({});
@@ -399,7 +399,7 @@ export function TransferBox() {
     //   console.log(tokenMap.get(mint))
     // }
     let keys: any[] = []
-    keys.push(<Input onKeyPress = {handleEnter} sx={{marginLeft: "20px"}} value={getField("mintB")} onChange={setField("mintB")}></Input>)
+    keys.push(<Input onKeyPress={handleEnter} sx={{ marginLeft: "20px" }} value={getField("mintB")} onChange={setField("mintB")}></Input>)
     for (const mint of MINTS) {
       if (!tokenMap.get(mint)) {
         if (mint === "None") {
@@ -453,9 +453,9 @@ export function TransferBox() {
             input={<OutlinedInput label="Buyer Mint" />}
             onChange={setField("mintB")}
             open={open}
-            onClose={(e) => {setOpen(false)}}
-            onOpen={(e) => {console.log("opening"); setOpen(true)}}
-            renderValue={(selected) => {return selected;}}
+            onClose={(e) => { setOpen(false) }}
+            onOpen={(e) => { console.log("opening"); setOpen(true) }}
+            renderValue={(selected) => { return selected; }}
           >
             {getTokenKeys(tokenMap)}
           </Select>
