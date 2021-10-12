@@ -7,9 +7,9 @@ import {
   OutlinedInput,
   InputLabel,
   MenuItem,
-  Menu,
   Input,
 } from "@mui/material";
+import LoadingButton from '@mui/lab/LoadingButton';
 import TextField from "@mui/material/TextField";
 import {
   cache,
@@ -414,85 +414,131 @@ export function TransferBox() {
   }
 
   return (
-    <Box
-      component="form"
-      sx={{
-        "& .MuiTextField-root": { m: 1, width: "60ch" },
-      }}
-      noValidate
-      autoComplete="on"
-    >
+    <div>
       <div>
-        <TextField
-          required
-          id="outlined-required"
-          label="Seller Public Key"
-          value={getField("maker")}
-          onChange={setField("maker")}
-        />
-        <TextField
-          required
-          id="outlined-required"
-          label="Seller Mint"
-          value={getField("mintA")}
-          onChange={setField("mintA")}
-        />
-        {/* <TextField
+        <Box
+          component="form"
+          sx={{
+            "& .MuiTextField-root": { m: 1, width: "60ch" },
+            justifyContent: "center"
+          }}
+          noValidate
+          autoComplete="on"
+        >
+          <LoadingButton
+            onClick={
+              () => {
+                if (env && formState && formState.mintA) {
+                  let url = `https://explorer.solana.com/address/${formState.mintA}?cluster=${env}`;
+                  const w = window.open(url, '_blank');
+                  if (w) {
+                    w.focus();
+                  }
+                }
+              }
+            } sx={{ width: "20ch" }} variant="outlined"
+          >
+            Seller Mint
+          </LoadingButton>
+          <LoadingButton
+            onClick={
+              () => {
+                if (env && formState && formState.mintB) {
+                  let url = `https://explorer.solana.com/address/${formState.mintB}?cluster=${env}`;
+                  const w = window.open(url, '_blank');
+                  if (w) {
+                    w.focus();
+                  }
+                }
+              }
+            } sx={{ width: "20ch" }} variant="outlined"
+          >
+            Buyer Mint
+          </LoadingButton>
+        </Box>
+      </div>
+      <div>
+        <Box
+          component="form"
+          sx={{
+            "& .MuiTextField-root": { m: 1, width: "60ch" },
+          }}
+          noValidate
+          autoComplete="on"
+        >
+          <div>
+            <TextField
+              required
+              id="outlined-required"
+              label="Seller Public Key"
+              value={getField("maker")}
+              onChange={setField("maker")}
+            />
+            <TextField
+              required
+              id="outlined-required"
+              label="Seller Mint"
+              value={getField("mintA")}
+              onChange={setField("mintA")}
+            />
+            {/* <TextField
           required
           id="outlined-required"
           label="Buyer Mint"
           value={getField("mintB")}
           onChange={setField("mintB")}
         /> */}
-        <FormControl>
-          <InputLabel id="buyer-mint">Buyer Mint</InputLabel>
-          <Select
-            sx={{ textAlign: "left", width: "60ch" }}
-            labelId="buyer-mint"
-            value={getField("mintB")}
-            input={<OutlinedInput label="Buyer Mint" />}
-            onChange={setField("mintB")}
-            open={open}
-            onClose={(e) => { setOpen(false) }}
-            onOpen={(e) => { console.log("opening"); setOpen(true) }}
-            renderValue={(selected) => { return selected; }}
-          >
-            {getTokenKeys(tokenMap)}
-          </Select>
-        </FormControl>
-        <TextField
-          id="outlined-number"
-          label="Seller Size"
-          type="number"
-          value={getField("sizeA")}
-          onChange={setField("sizeA")}
-          InputLabelProps={{
-            shrink: true,
-          }}
-        />
-        <TextField
-          id="outlined-number"
-          label="Buyer Size"
-          type="number"
-          value={getField("sizeB")}
-          onChange={setField("sizeB")}
-          InputLabelProps={{
-            shrink: true,
-          }}
-        />
+            <FormControl>
+              <InputLabel id="buyer-mint">Buyer Mint</InputLabel>
+              <Select
+                sx={{ display: "inline-block", textAlign: "left", width: "60ch" }}
+                labelId="buyer-mint"
+                value={getField("mintB")}
+                input={<OutlinedInput label="Buyer Mint" />}
+                onChange={setField("mintB")}
+                open={open}
+                onClose={(e) => { setOpen(false) }}
+                onOpen={(e) => { console.log("opening"); setOpen(true) }}
+                renderValue={(selected) => { return selected; }}
+              >
+                {getTokenKeys(tokenMap)}
+              </Select>
+            </FormControl>
+            <TextField
+              id="outlined-number"
+              label="Seller Size"
+              type="number"
+              value={getField("sizeA")}
+              onChange={setField("sizeA")}
+              InputLabelProps={{
+                shrink: true,
+              }}
+            />
+            <TextField
+              id="outlined-number"
+              label="Buyer Size"
+              type="number"
+              value={getField("sizeB")}
+              onChange={setField("sizeB")}
+              InputLabelProps={{
+                shrink: true,
+              }}
+            />
+          </div>
+          <div style={{ marginTop: "10px" }}>
+            {displayActions(
+              connection,
+              wallet,
+              formState,
+              mintCache,
+              isSeller,
+              hasDelegate,
+              hasValidDelegate,
+              validAmount
+            )}
+          </div>
+        </Box>
       </div>
-      <div style={{ marginTop: "10px" }}>
-        {displayActions(
-          connection,
-          wallet,
-          formState,
-          mintCache,
-          isSeller,
-          hasDelegate,
-          hasValidDelegate,
-          validAmount
-        )}
-      </div>
-    </Box>
+    </div>
   );
 }

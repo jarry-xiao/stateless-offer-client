@@ -12,6 +12,7 @@
     "@ledgerhq/hw-transport": "^6.3.0",
     "@ledgerhq/hw-transport-webusb": "^6.3.0",
     "@mui/icons-material": "^5.0.3",
+    "@mui/lab": "^5.0.0-alpha.50",
     "@mui/material": "^5.0.2",
     "@progress/kendo-react-common": "^4.9.0",
     "@progress/kendo-react-grid": "^4.9.0",
