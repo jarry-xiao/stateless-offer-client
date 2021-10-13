@@ -4,7 +4,6 @@ import {
   PublicKey,
   Keypair,
 } from "@solana/web3.js";
-import { WalletNotConnectedError } from "@solana/wallet-adapter-base";
 import { Connection as Conn } from "../contexts";
 import BN from "bn.js";
 import {
@@ -14,7 +13,6 @@ import {
 } from "../utils";
 import { Schema, serialize } from "borsh";
 import { TOKEN_PROGRAM_ID, Token, NATIVE_MINT } from "@solana/spl-token";
-import { getListItemSecondaryActionClassesUtilityClass } from "@mui/material";
 
 // Hard-coded devnet key for now
 export const PROGRAM_ID = new PublicKey(
@@ -258,7 +256,7 @@ export const changeOffer = async (
     mintB.toBase58() === NATIVE_MINT.toBase58()
       ? wallet.publicKey
       : tokenAccountMintB;
-  const [transferAuthority, bump] = await PublicKey.findProgramAddress(
+  const transferAuthority = (await PublicKey.findProgramAddress(
     [
       Buffer.from("stateless_offer"),
       wallet.publicKey.toBuffer(),
@@ -268,7 +266,7 @@ export const changeOffer = async (
       new Uint8Array(sizeB.toArray("le", 8)),
     ],
     PROGRAM_ID
-  );
+  ))[0];
   let authIx;
   if (approve) {
     authIx = Token.createApproveInstruction(
@@ -298,6 +296,11 @@ export const changeOffer = async (
     notify({ message: "Delegation transaction failed" });
     return false;
   } else {
+    if (approve) {
+      notify({ message: `Successfully assigned delegate (${transferAuthority.toBase58()})` });
+    } else {
+      notify({ message: `Successfully removed delegate (${transferAuthority.toBase58()})` });
+    }
     return true;
   }
 };
@@ -380,7 +383,7 @@ export const trade = async (
   );
   console.log(mintB.toBase58());
   console.log(NATIVE_MINT);
-  if (!hasATAMintB && mintB.toBase58() != NATIVE_MINT.toBase58()) {
+  if (!hasATAMintB && mintB.toBase58() !== NATIVE_MINT.toBase58()) {
     notify({ message: "Taker must have ATA for mint B" });
     return false;
   }

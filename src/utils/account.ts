@@ -1,6 +1,5 @@
 import { AccountLayout, MintLayout, Token } from '@solana/spl-token';
 import {
-  Account,
   Keypair,
   PublicKey,
   SystemProgram,

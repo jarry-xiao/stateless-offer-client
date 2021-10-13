@@ -4,7 +4,6 @@ import { Box } from "@mui/system";
 import ConnectButton from "../ConnectButton";
 import { ModalEnum, useModal, useWalletModal } from "../../contexts";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { AppBar } from "@mui/material";
 
 export const Header: React.FC = () => {
   const { setModal } = useModal();

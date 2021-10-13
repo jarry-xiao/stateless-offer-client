@@ -11,10 +11,9 @@ import {
   getSolletWallet,
   getSolongWallet,
   getTorusWallet,
-  WalletName,
 } from "@solana/wallet-adapter-wallets";
 import { Button } from "antd";
-import React, {
+import {
   createContext,
   FC,
   ReactNode,
@@ -43,13 +42,11 @@ export function useWalletModal(): WalletModalContextState {
 }
 
 export const WalletModal: FC = () => {
-  const { wallets, connected, wallet: selected, select } = useWallet();
+  const { wallets, wallet: selected, select } = useWallet();
   const { visible, setVisible } = useWalletModal();
-  const [showWallets, setShowWallets] = useState(false);
   const close = useCallback(() => {
     setVisible(false);
-    setShowWallets(false);
-  }, [setVisible, setShowWallets]);
+  }, [setVisible]);
 
   return (
     <DefaultModal visible={visible} onCancel={close}>

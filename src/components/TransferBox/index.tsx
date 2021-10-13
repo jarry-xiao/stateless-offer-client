@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from "react";
-import base58 from "bs58";
+import { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import {
@@ -13,25 +12,24 @@ import {
 import LoadingButton from "@mui/lab/LoadingButton";
 import TextField from "@mui/material/TextField";
 import {
-  cache,
   useConnection,
   deserializeAccount,
   deserializeMint,
   useConnectionConfig,
 } from "../../contexts";
-import { FormControlUnstyled } from "@mui/material";
 import {
-  notify,
-  createAssociatedTokenAccountInstruction,
   SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID,
 } from "../../utils";
-import { Schema, serialize } from "borsh";
-import { TOKEN_PROGRAM_ID, Token, NATIVE_MINT } from "@solana/spl-token";
-import { changeOffer, consolidateTokenAccounts, trade } from "../../actions/accept_offer";
+import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import {
+  changeOffer,
+  consolidateTokenAccounts,
+  trade,
+} from "../../actions/accept_offer";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import { useWallet } from "@solana/wallet-adapter-react";
-import tokenlist, {
+import {
   ENV,
   TokenInfo,
   TokenListProvider,
@@ -73,7 +71,6 @@ const getDelegate = async (formState: any, mintCache: any) => {
 
 const getExplorerLink = (env, formState, mint) => {
   if (env && formState && formState[mint]) {
-    console.log("Explorer", env, formState, formState[mint]);
     let url = `https://explorer.solana.com/address/${formState[mint]}?cluster=${env}`;
     return window.open(url, "_blank");
   }
@@ -128,7 +125,7 @@ const displayActions = (
                 new PublicKey(formState.mintA),
                 wallet,
                 nonATAs,
-                setNonATAs,
+                setNonATAs
               );
             } catch (e) {
               return;
@@ -137,14 +134,14 @@ const displayActions = (
         }}
         sx={{ marginRight: "4px" }}
       >
-        Consolidate Token Accounts 
+        Consolidate Token Accounts
       </Button>
     );
   }
   if (isSeller) {
     return (
       <div>
-        {validAmount && (
+        {validAmount && !hasValidDelegate && (
           <Button
             variant="contained"
             onClick={() => {
@@ -165,14 +162,14 @@ const displayActions = (
             }}
             sx={{ marginRight: "4px" }}
           >
-            Open Offer
+            Open New Offer
           </Button>
         )}
         {hasDelegate && (
           <Button
             variant="contained"
             color="error"
-            sx={{ marginRight: "4px" }}
+            sx={{ marginLeft: "10px" }}
             onClick={() => {
               if (formState) {
                 try {
@@ -195,7 +192,7 @@ const displayActions = (
               }
             }}
           >
-            Close Offer
+            Close Existing Offer
           </Button>
         )}
       </div>
@@ -300,11 +297,11 @@ export function TransferBox() {
       }
 
       const delegate = await getDelegate(formState, mintCache);
-      setHasDelegate(tokenAccount.delegateOption != 0);
+      setHasDelegate(tokenAccount.delegateOption !== 0);
       if (
         tokenAccount.delegate &&
         delegate &&
-        tokenAccount.delegateOption != 0 &&
+        tokenAccount.delegateOption !== 0 &&
         delegate.toBase58() === tokenAccount.delegate.toBase58()
       ) {
         setHasValidDelegate(true);
@@ -337,23 +334,29 @@ export function TransferBox() {
         )
       )[0];
       const result = await connection.getAccountInfo(sellerTokenAccount);
-      console.log(sellerTokenAccount.toBase58());
       if (result) {
-        const tokenAccount = deserializeAccount(result.data);
-        console.log(formState);
-        console.log(tokenAccount);
-        setAccountState(tokenAccount);
+        try {
+          const tokenAccount = deserializeAccount(result.data);
+          setAccountState(tokenAccount);
+        } catch (e) {
+          console.log("Failed to deserialize account");
+        }
       } else {
-        let sellerTokenAccounts = await connection.getTokenAccountsByOwner(
-          sellerWallet,
-          { mint: sellerMint }
-        );
+        let sellerTokenAccounts;
+        try {
+          sellerTokenAccounts = await connection.getTokenAccountsByOwner(
+            sellerWallet,
+            { mint: sellerMint }
+          );
+        } catch {
+          return;
+        }
         if (sellerTokenAccounts.value) {
           let badAccounts: any = [];
           for (const account of sellerTokenAccounts.value) {
             try {
               const size = deserializeAccount(account.account.data).amount;
-              badAccounts.push({pubkey: account.pubkey, size: size});
+              badAccounts.push({ pubkey: account.pubkey, size: size });
             } catch (e) {
               console.log("Failed to deserialize account", e);
             }
@@ -387,7 +390,6 @@ export function TransferBox() {
         try {
           mint = new PublicKey(mintString);
         } catch (e) {
-          console.log("Invalid Pubkey", mintString);
           continue;
         }
         if (!(mint.toBase58() in mintCache)) {
@@ -400,7 +402,7 @@ export function TransferBox() {
                 [mintString]: mintData,
               });
             } catch {
-              console.log("Invalid Mint");
+              continue;
             }
           }
         }

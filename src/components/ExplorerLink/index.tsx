@@ -27,6 +27,7 @@ export const ExplorerLink = (props: {
     <a
       href={`https://explorer.solana.com/${type}/${address}`}
       target="_blank"
+      rel="noreferrer"
       title={address}
       style={props.style}
     >

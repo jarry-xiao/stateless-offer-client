@@ -1,5 +1,5 @@
-import { createTheme, useTheme } from "@mui/material";
-import React, { useContext, FC } from "react";
+import { useTheme } from "@mui/material";
+import React, { useContext } from "react";
 
 export const ColorModeContext = React.createContext({});
 

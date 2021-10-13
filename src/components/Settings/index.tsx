@@ -1,16 +1,15 @@
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { ENDPOINTS, useColorMode, useConnectionConfig } from "../../contexts";
 import { notify, shortenAddress } from "../../utils";
 import { CopyOutlined } from "@ant-design/icons";
 import { ModalEnum, useModal, useWalletModal } from "../../contexts";
-import { Box, flexbox } from "@mui/system";
+import { Box } from "@mui/system";
 import { Button, FormControl, NativeSelect } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import IconButton from "@mui/material/IconButton";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
-import { controllers } from "chart.js";
 
 export const Settings = ({
   additionalSettings,
@@ -18,7 +17,7 @@ export const Settings = ({
   additionalSettings?: JSX.Element;
 }) => {
   const { connected, disconnect, publicKey } = useWallet();
-  const { endpoint, setEndpoint, env } = useConnectionConfig();
+  const { setEndpoint, env } = useConnectionConfig();
   const { setVisible } = useWalletModal();
   const open = useCallback(() => setVisible(true), [setVisible]);
   const { setModal } = useModal();

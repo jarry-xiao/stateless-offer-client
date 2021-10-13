@@ -1,7 +1,6 @@
 import { sleep, useLocalStorageState } from "../utils/utils";
 import {
   Keypair,
-  clusterApiUrl,
   Commitment,
   Connection,
   RpcResponseAndContext,
@@ -100,7 +99,7 @@ export function ConnectionProvider({ children = undefined as any }) {
       setTokenMap(knownMints);
       setTokens(list);
     });
-  }, [env]);
+  }, [env, endpoint]);
 
   // The websocket library solana/web3.js uses closes its websocket connection when the subscription list
   // is empty after opening its first time, preventing subsequent subscriptions from receiving responses.
