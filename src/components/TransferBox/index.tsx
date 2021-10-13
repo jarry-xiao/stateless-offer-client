@@ -17,9 +17,7 @@ import {
   deserializeMint,
   useConnectionConfig,
 } from "../../contexts";
-import {
-  SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID,
-} from "../../utils";
+import { SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID } from "../../utils";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import {
   changeOffer,
@@ -29,11 +27,7 @@ import {
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import { useWallet } from "@solana/wallet-adapter-react";
-import {
-  ENV,
-  TokenInfo,
-  TokenListProvider,
-} from "@solana/spl-token-registry";
+import { ENV, TokenInfo, TokenListProvider } from "@solana/spl-token-registry";
 
 const MINTS = ["None", "SOL", "USDC", "USDT", "BTC", "ETH"];
 
@@ -247,7 +241,8 @@ export function TransferBox() {
   const [validAmount, setValidAmount] = useState(false);
   const [hasDelegate, setHasDelegate] = useState(false);
   const [hasValidDelegate, setHasValidDelegate] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [openA, setOpenA] = useState(false);
+  const [openB, setOpenB] = useState(false);
   const [nonATAs, setNonATAs] = useState();
 
   const [tokenMap, setTokenMap] = useState<Map<string, TokenInfo>>(new Map());
@@ -437,25 +432,35 @@ export function TransferBox() {
 
   const handleEnter = (e) => {
     if (e.key === "Enter") {
-      setOpen(false);
+      setOpenA(false);
+      setOpenB(false);
       console.log(e.key);
     }
   };
 
-  const getTokenKeys = (tokenMap) => {
+  const getTokenKeys = (tokenMap, mintStr) => {
     let keys: any[] = [];
     keys.push(
       <Input
         onKeyPress={handleEnter}
-        sx={{ marginLeft: "20px" }}
-        value={getField("mintB")}
-        onChange={setField("mintB")}
+        inputProps={{
+          sx: { marginLeft: "15px" },
+          value: getField(mintStr),
+          placeholder: "Enter the desired mint public key (or select from known mints)",
+        }}
+        value={getField(mintStr)}
+        fullWidth
+        onChange={setField(mintStr)}
       ></Input>
     );
     for (const mint of MINTS) {
       if (!tokenMap.get(mint)) {
         if (mint === "None") {
-          keys.push(<MenuItem value="">{mint}</MenuItem>);
+          keys.push(
+            <MenuItem value="" sx={{ fontStyle: "italic" }}>
+              {mint}
+            </MenuItem>
+          );
         }
         continue;
       }
@@ -484,6 +489,8 @@ export function TransferBox() {
                 w.focus();
               }
             }}
+            onMouseOver={() => {}}
+            onMouseOut={() => {}}
             disabled={!(formState.mintA && formState.mintA in mintCache)}
             color="secondary"
             sx={{ width: "30ch" }}
@@ -524,14 +531,32 @@ export function TransferBox() {
               value={getField("maker")}
               onChange={setField("maker")}
             />
-            <TextField
-              required
-              id="outlined-required"
-              label="Seller Mint"
-              value={getField("mintA")}
-              onChange={setField("mintA")}
-              sx={{ marginBottom: "5px" }}
-            />
+            <FormControl sx={{ marginBottom: "5px" }}>
+              <InputLabel id="seller-mint">Seller Mint</InputLabel>
+              <Select
+                sx={{
+                  display: "inline-block",
+                  textAlign: "left",
+                  width: "60ch",
+                }}
+                labelId="seller-mint"
+                value={getField("mintA")}
+                input={<OutlinedInput label="Seller Mint" />}
+                onChange={setField("mintA")}
+                open={openA}
+                onClose={(e) => {
+                  setOpenA(false);
+                }}
+                onOpen={(e) => {
+                  setOpenA(true);
+                }}
+                renderValue={(selected) => {
+                  return selected;
+                }}
+              >
+                {getTokenKeys(tokenMap, "mintA")}
+              </Select>
+            </FormControl>
             <FormControl sx={{ marginBottom: "5px" }}>
               <InputLabel id="buyer-mint">Buyer Mint</InputLabel>
               <Select
@@ -544,19 +569,18 @@ export function TransferBox() {
                 value={getField("mintB")}
                 input={<OutlinedInput label="Buyer Mint" />}
                 onChange={setField("mintB")}
-                open={open}
+                open={openB}
                 onClose={(e) => {
-                  setOpen(false);
+                  setOpenB(false);
                 }}
                 onOpen={(e) => {
-                  console.log("opening");
-                  setOpen(true);
+                  setOpenB(true);
                 }}
                 renderValue={(selected) => {
                   return selected;
                 }}
               >
-                {getTokenKeys(tokenMap)}
+                {getTokenKeys(tokenMap, "mintB")}
               </Select>
             </FormControl>
             <TextField
