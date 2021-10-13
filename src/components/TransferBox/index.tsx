@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import base58 from "bs58";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import {
@@ -26,7 +27,7 @@ import {
 } from "../../utils";
 import { Schema, serialize } from "borsh";
 import { TOKEN_PROGRAM_ID, Token, NATIVE_MINT } from "@solana/spl-token";
-import { changeOffer, trade } from "../../actions/accept_offer";
+import { changeOffer, consolidateTokenAccounts, trade } from "../../actions/accept_offer";
 import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -70,6 +71,15 @@ const getDelegate = async (formState: any, mintCache: any) => {
   }
 };
 
+const getExplorerLink = (env, formState, mint) => {
+  if (env && formState && formState[mint]) {
+    console.log("Explorer", env, formState, formState[mint]);
+    let url = `https://explorer.solana.com/address/${formState[mint]}?cluster=${env}`;
+    return window.open(url, "_blank");
+  }
+  return false;
+};
+
 const getDefaultFormState = () => {
   let url = new URL(window.location.href);
   let params = new URLSearchParams(url.search.slice(1));
@@ -91,6 +101,8 @@ const displayActions = (
   wallet: any,
   formState: any,
   mintCache: any,
+  nonATAs: any,
+  setNonATAs: any,
   isSeller,
   hasDelegate,
   hasValidDelegate,
@@ -102,6 +114,32 @@ const displayActions = (
   const sizeB = getSize(formState.sizeB, formState.mintB, mintCache);
   if (!mintEntered || sizeA <= 0 || sizeB <= 0) {
     return <div></div>;
+  }
+  if (isSeller && nonATAs && nonATAs.length && nonATAs.length > 0) {
+    return (
+      <Button
+        variant="contained"
+        color="success"
+        onClick={() => {
+          if (formState) {
+            try {
+              consolidateTokenAccounts(
+                connection,
+                new PublicKey(formState.mintA),
+                wallet,
+                nonATAs,
+                setNonATAs,
+              );
+            } catch (e) {
+              return;
+            }
+          }
+        }}
+        sx={{ marginRight: "4px" }}
+      >
+        Consolidate Token Accounts 
+      </Button>
+    );
   }
   if (isSeller) {
     return (
@@ -213,7 +251,7 @@ export function TransferBox() {
   const [hasDelegate, setHasDelegate] = useState(false);
   const [hasValidDelegate, setHasValidDelegate] = useState(false);
   const [open, setOpen] = useState(false);
-  const [anchor, setAnchor] = useState(null);
+  const [nonATAs, setNonATAs] = useState();
 
   const [tokenMap, setTokenMap] = useState<Map<string, TokenInfo>>(new Map());
 
@@ -235,10 +273,6 @@ export function TransferBox() {
       );
     });
   }, [setTokenMap, env]);
-
-  // useEffect(() => {
-  //   console.log(tokenMap)
-  // }, [tokenMap, env]);
 
   useEffect(() => {
     if (!wallet) {
@@ -289,10 +323,10 @@ export function TransferBox() {
       try {
         sellerWallet = new PublicKey(formState.maker);
         sellerMint = new PublicKey(formState.mintA);
-      } catch {
+      } catch (e) {
         return;
       }
-      const sellerTokenAccount = (
+      let sellerTokenAccount = (
         await PublicKey.findProgramAddress(
           [
             sellerWallet.toBuffer(),
@@ -303,11 +337,30 @@ export function TransferBox() {
         )
       )[0];
       const result = await connection.getAccountInfo(sellerTokenAccount);
+      console.log(sellerTokenAccount.toBase58());
       if (result) {
         const tokenAccount = deserializeAccount(result.data);
         console.log(formState);
         console.log(tokenAccount);
         setAccountState(tokenAccount);
+      } else {
+        let sellerTokenAccounts = await connection.getTokenAccountsByOwner(
+          sellerWallet,
+          { mint: sellerMint }
+        );
+        if (sellerTokenAccounts.value) {
+          let badAccounts: any = [];
+          for (const account of sellerTokenAccounts.value) {
+            try {
+              const size = deserializeAccount(account.account.data).amount;
+              badAccounts.push({pubkey: account.pubkey, size: size});
+            } catch (e) {
+              console.log("Failed to deserialize account", e);
+            }
+          }
+          console.log(badAccounts);
+          setNonATAs(badAccounts);
+        }
       }
       subId = connection.onAccountChange(sellerTokenAccount, async (result) => {
         if (result) {
@@ -334,7 +387,7 @@ export function TransferBox() {
         try {
           mint = new PublicKey(mintString);
         } catch (e) {
-          console.log("Invalid Pubkey");
+          console.log("Invalid Pubkey", mintString);
           continue;
         }
         if (!(mint.toBase58() in mintCache)) {
@@ -417,38 +470,36 @@ export function TransferBox() {
           sx={{
             "& .MuiTextField-root": { m: 1, width: "60ch" },
             justifyContent: "center",
-            marginBottom: "5px",
+            marginBottom: "10px",
           }}
           noValidate
           autoComplete="on"
         >
           <LoadingButton
             onClick={() => {
-              if (env && formState && formState.mintA) {
-                let url = `https://explorer.solana.com/address/${formState.mintA}?cluster=${env}`;
-                const w = window.open(url, "_blank");
-                if (w) {
-                  w.focus();
-                }
+              const w = getExplorerLink(env, formState, "mintA");
+              if (w) {
+                w.focus();
               }
             }}
+            disabled={!(formState.mintA && formState.mintA in mintCache)}
+            color="secondary"
             sx={{ width: "30ch" }}
-            variant="outlined"
+            variant="contained"
           >
             Seller Mint (Explorer)
           </LoadingButton>
           <LoadingButton
             onClick={() => {
-              if (env && formState && formState.mintB) {
-                let url = `https://explorer.solana.com/address/${formState.mintB}?cluster=${env}`;
-                const w = window.open(url, "_blank");
-                if (w) {
-                  w.focus();
-                }
+              const w = getExplorerLink(env, formState, "mintB");
+              if (w) {
+                w.focus();
               }
             }}
-            sx={{ width: "30ch" }}
-            variant="outlined"
+            disabled={!(formState.mintB && formState.mintB in mintCache)}
+            color="secondary"
+            sx={{ width: "30ch", marginLeft: "10px" }}
+            variant="contained"
           >
             Buyer Mint (Explorer)
           </LoadingButton>
@@ -477,8 +528,9 @@ export function TransferBox() {
               label="Seller Mint"
               value={getField("mintA")}
               onChange={setField("mintA")}
+              sx={{ marginBottom: "5px" }}
             />
-            <FormControl>
+            <FormControl sx={{ marginBottom: "5px" }}>
               <InputLabel id="buyer-mint">Buyer Mint</InputLabel>
               <Select
                 sx={{
@@ -511,6 +563,7 @@ export function TransferBox() {
               type="number"
               value={getField("sizeA")}
               onChange={setField("sizeA")}
+              sx={{ marginBottom: "5px" }}
               InputLabelProps={{
                 shrink: true,
               }}
@@ -521,6 +574,7 @@ export function TransferBox() {
               type="number"
               value={getField("sizeB")}
               onChange={setField("sizeB")}
+              sx={{ marginBottom: "5px" }}
               InputLabelProps={{
                 shrink: true,
               }}
@@ -532,6 +586,8 @@ export function TransferBox() {
               wallet,
               formState,
               mintCache,
+              nonATAs,
+              setNonATAs,
               isSeller,
               hasDelegate,
               hasValidDelegate,

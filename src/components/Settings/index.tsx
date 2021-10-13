@@ -1,15 +1,16 @@
-import React, { useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { ENDPOINTS, useColorMode, useConnectionConfig } from "../../contexts";
 import { notify, shortenAddress } from "../../utils";
 import { CopyOutlined } from "@ant-design/icons";
 import { ModalEnum, useModal, useWalletModal } from "../../contexts";
 import { Box, flexbox } from "@mui/system";
-import { Button, NativeSelect } from "@mui/material";
+import { Button, FormControl, NativeSelect } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import IconButton from "@mui/material/IconButton";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
+import { controllers } from "chart.js";
 
 export const Settings = ({
   additionalSettings,
@@ -34,11 +35,18 @@ export const Settings = ({
       <Box sx={{ display: "flex", minWidth: "100%" }}>
         {!connected && (
           <>
-            <NativeSelect style={{ marginBottom: 5 }} onChange={(e) => setEndpoint(e.target.value)}>
-              {ENDPOINTS.map(({ name, endpoint }) => (
-                <option value={endpoint}>{name}</option>
-              ))}
-            </NativeSelect>
+            <FormControl>
+              <NativeSelect
+                style={{ marginBottom: 5 }}
+                onChange={(e) => {
+                  setEndpoint(e.target.value);
+                }}
+              >
+                {ENDPOINTS.map(({ name, endpoint }) => (
+                  <option value={endpoint}>{name}</option>
+                ))}
+              </NativeSelect>
+            </FormControl>
             <Button
               variant="contained"
               onClick={handleConnect}

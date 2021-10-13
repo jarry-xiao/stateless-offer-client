@@ -14,6 +14,7 @@ import {
 } from "../utils";
 import { Schema, serialize } from "borsh";
 import { TOKEN_PROGRAM_ID, Token, NATIVE_MINT } from "@solana/spl-token";
+import { getListItemSecondaryActionClassesUtilityClass } from "@mui/material";
 
 // Hard-coded devnet key for now
 export const PROGRAM_ID = new PublicKey(
@@ -115,15 +116,13 @@ export const acceptOfferInstruction = async (
       isSigner: false,
       isWritable: false,
     },
-  ]
+  ];
   if (takerSrcMint.toBase58() === NATIVE_MINT.toBase58()) {
-    keys.push(
-      {
-        pubkey: SystemProgram.programId,
-        isSigner: false,
-        isWritable: false,
-      }
-    )
+    keys.push({
+      pubkey: SystemProgram.programId,
+      isSigner: false,
+      isWritable: false,
+    });
   }
   return {
     ix: [
@@ -134,6 +133,72 @@ export const acceptOfferInstruction = async (
       }),
     ],
   };
+};
+
+export const consolidateTokenAccounts = async (
+  connection,
+  mintA: PublicKey,
+  wallet: any,
+  nonATAs: any[],
+  setNonATAs: any,
+) => {
+  if (!wallet.publicKey) {
+    notify({ message: "Wallet not connected!" });
+    return false;
+  }
+  let signers: Keypair[] = [];
+  let instructions: TransactionInstruction[] = [];
+  const tokenAccountMintA = (
+    await PublicKey.findProgramAddress(
+      [
+        wallet.publicKey.toBuffer(),
+        TOKEN_PROGRAM_ID.toBuffer(),
+        mintA.toBuffer(),
+      ],
+      SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID
+    )
+  )[0];
+  createAssociatedTokenAccountInstruction(
+    instructions,
+    tokenAccountMintA,
+    wallet.publicKey,
+    wallet.publicKey,
+    mintA
+  );
+  for (const {pubkey, size} of nonATAs) {
+    const transferIx = Token.createTransferInstruction(
+      TOKEN_PROGRAM_ID,
+      pubkey,
+      tokenAccountMintA,
+      wallet.publicKey,
+      [],
+      size,
+    );
+    const closeIx = Token.createCloseAccountInstruction(
+      TOKEN_PROGRAM_ID,
+      pubkey,
+      wallet.publicKey,
+      wallet.publicKey,
+      [],
+    );
+    instructions.push(...[transferIx, closeIx]);
+  }
+  const response = await Conn.sendTransactionWithRetry(
+    connection,
+    wallet,
+    [...instructions],
+    signers,
+    "max"
+  );
+  if (!response) {
+    notify({ message: "Consolidation Failed" });
+    return false;
+  } else {
+    notify({ message: "Successfully merged all token accounts into 1 Assoicated Token Account" });
+    setNonATAs([]);
+    return true;
+  }
+
 };
 
 export const changeOffer = async (
@@ -151,7 +216,6 @@ export const changeOffer = async (
   }
   let signers: Keypair[] = [];
   let ataIx: TransactionInstruction[] = [];
-
   const tokenAccountMintA = (
     await PublicKey.findProgramAddress(
       [
@@ -190,7 +254,10 @@ export const changeOffer = async (
       mintB
     );
   }
-  tokenAccountMintB = mintB.toBase58() === NATIVE_MINT.toBase58() ? wallet.publicKey : tokenAccountMintB;
+  tokenAccountMintB =
+    mintB.toBase58() === NATIVE_MINT.toBase58()
+      ? wallet.publicKey
+      : tokenAccountMintB;
   const [transferAuthority, bump] = await PublicKey.findProgramAddress(
     [
       Buffer.from("stateless_offer"),
@@ -210,7 +277,7 @@ export const changeOffer = async (
       transferAuthority,
       wallet.publicKey,
       [],
-      sizeA.toNumber(),
+      sizeA.toNumber()
     );
   } else {
     authIx = Token.createRevokeInstruction(
@@ -242,7 +309,7 @@ export const trade = async (
   mintB: PublicKey,
   sizeA: BN,
   sizeB: BN,
-  wallet: any,
+  wallet: any
 ) => {
   if (!wallet.publicKey) {
     notify({ message: "Wallet not connected!" });
@@ -311,15 +378,19 @@ export const trade = async (
   const hasATAMintB = await connection.getAccountInfo(
     new PublicKey(takerAccountMintB)
   );
-  console.log(mintB.toBase58())
-  console.log(NATIVE_MINT)
+  console.log(mintB.toBase58());
+  console.log(NATIVE_MINT);
   if (!hasATAMintB && mintB.toBase58() != NATIVE_MINT.toBase58()) {
     notify({ message: "Taker must have ATA for mint B" });
     return false;
   }
 
-  makerAccountMintB = mintB.toBase58() === NATIVE_MINT.toBase58() ? maker : makerAccountMintB;
-  takerAccountMintB =  mintB.toBase58() === NATIVE_MINT.toBase58() ? wallet.publicKey : takerAccountMintB;
+  makerAccountMintB =
+    mintB.toBase58() === NATIVE_MINT.toBase58() ? maker : makerAccountMintB;
+  takerAccountMintB =
+    mintB.toBase58() === NATIVE_MINT.toBase58()
+      ? wallet.publicKey
+      : takerAccountMintB;
   const [transferAuthority, bump] = await PublicKey.findProgramAddress(
     [
       Buffer.from("stateless_offer"),

@@ -33,14 +33,14 @@ export type ENV = "mainnet-beta" | "testnet" | "devnet" | "localnet";
 
 export const ENDPOINTS = [
   {
-    name: "devnet" as ENV,
-    endpoint: "https://api.devnet.solana.com",
-    ChainId: ChainId.Devnet,
-  },
-  {
     name: "mainnet-beta" as ENV,
     endpoint: "https://api.mainnet-beta.solana.com",
     ChainId: ChainId.MainnetBeta,
+  },
+  {
+    name: "devnet" as ENV,
+    endpoint: "https://api.devnet.solana.com",
+    ChainId: ChainId.Devnet,
   },
 ];
 
@@ -652,7 +652,7 @@ async function awaitTransactionSignatureConfirmation(
             txid,
           ]);
           status = signatureStatuses && signatureStatuses.value[0];
-          console.log(`https://explorer.solana.com/tx/${txid}?cluster=devnet`); // TODO
+          console.log(`https://explorer.solana.com/tx/${txid}?cluster=mainnet-beta`); // TODO
           if (!done) {
             if (!status) {
               console.log("REST null result for", txid, status);
