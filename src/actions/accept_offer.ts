@@ -206,6 +206,7 @@ export const changeOffer = async (
   sizeA: BN,
   sizeB: BN,
   wallet: any,
+  setHasDelegate: any,
   approve = true
 ) => {
   if (!wallet.publicKey) {
@@ -297,8 +298,10 @@ export const changeOffer = async (
     return false;
   } else {
     if (approve) {
+      setHasDelegate(true);
       notify({ message: `Successfully assigned delegate (${transferAuthority.toBase58()})` });
     } else {
+      setHasDelegate(false);
       notify({ message: `Successfully removed delegate (${transferAuthority.toBase58()})` });
     }
     return true;

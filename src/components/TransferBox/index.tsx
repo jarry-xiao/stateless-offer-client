@@ -28,6 +28,7 @@ import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { ENV, TokenInfo, TokenListProvider } from "@solana/spl-token-registry";
+import Popover from '@mui/material/Popover';
 
 const MINTS = ["None", "SOL", "USDC", "USDT", "BTC", "ETH"];
 
@@ -97,6 +98,7 @@ const displayActions = (
   isSeller,
   hasDelegate,
   hasValidDelegate,
+  setHasDelegate,
   validAmount
 ) => {
   const mintEntered =
@@ -147,7 +149,8 @@ const displayActions = (
                     new PublicKey(formState.mintB),
                     new BN(sizeA),
                     new BN(sizeB),
-                    wallet
+                    wallet,
+                    setHasDelegate,
                   );
                 } catch (e) {
                   return;
@@ -178,6 +181,7 @@ const displayActions = (
                       getSize(formState.sizeB, formState.mintB, mintCache)
                     ),
                     wallet,
+                    setHasDelegate,
                     false
                   );
                 } catch (e) {
@@ -244,6 +248,10 @@ export function TransferBox() {
   const [openA, setOpenA] = useState(false);
   const [openB, setOpenB] = useState(false);
   const [nonATAs, setNonATAs] = useState();
+  const [anchorElA, setAnchorElA] = useState(null);
+  const [anchorElB, setAnchorElB] = useState(null);
+  const [openPopA, setOpenPopA] = useState(false);
+  const [openPopB, setOpenPopB] = useState(false);
 
   const [tokenMap, setTokenMap] = useState<Map<string, TokenInfo>>(new Map());
 
@@ -434,9 +442,28 @@ export function TransferBox() {
     if (e.key === "Enter") {
       setOpenA(false);
       setOpenB(false);
-      console.log(e.key);
     }
   };
+
+  const handlePopoverOpenA = (e) => {
+    setAnchorElA(e.currentTarget);
+    setOpenPopA(true);
+  }
+
+  const handlePopoverCloseA = (e) => {
+    setAnchorElA(null);
+    setOpenPopA(false);
+  }
+
+  const handlePopoverOpenB = (e) => {
+    setAnchorElB(e.currentTarget);
+    setOpenPopB(true);
+  }
+
+  const handlePopoverCloseB = (e) => {
+    setAnchorElB(null);
+    setOpenPopB(false);
+  }
 
   const getTokenKeys = (tokenMap, mintStr) => {
     let keys: any[] = [];
@@ -489,15 +516,41 @@ export function TransferBox() {
                 w.focus();
               }
             }}
-            onMouseOver={() => {}}
-            onMouseOut={() => {}}
+            onMouseOver={handlePopoverOpenA}
+            onMouseOut={handlePopoverCloseA}
             disabled={!(formState.mintA && formState.mintA in mintCache)}
             color="secondary"
             sx={{ width: "30ch" }}
             variant="contained"
+            aria-owns={openPopA ? 'mouse-popoverA' : undefined}
+            aria-haspopup="true"
           >
             Seller Mint (Explorer)
           </LoadingButton>
+          <Popover
+            id='mouse-popoverA'
+            sx={{
+              pointerEvents: 'none',
+            }}
+            open={openPopA}
+            anchorEl={anchorElA}
+            anchorOrigin={{
+              vertical: 'top',
+              horizontal: 'left',
+            }}
+            transformOrigin={{
+              vertical: 'bottom',
+              horizontal: 'left',
+            }}
+            onClose={handlePopoverCloseA}
+          >
+            <iframe
+              id="imageA"
+              src={`https://explorer.solana.com/address/${formState["mintA"]}`}
+              height="500"
+              width="500"
+            />
+          </Popover>
           <LoadingButton
             onClick={() => {
               const w = getExplorerLink(env, formState, "mintB");
@@ -505,13 +558,41 @@ export function TransferBox() {
                 w.focus();
               }
             }}
+            onMouseOver={handlePopoverOpenB}
+            onMouseOut={handlePopoverCloseB}
             disabled={!(formState.mintB && formState.mintB in mintCache)}
             color="secondary"
             sx={{ width: "30ch", marginLeft: "10px" }}
             variant="contained"
+            aria-owns={openPopB ? 'mouse-popoverB' : undefined}
+            aria-haspopup="true"
           >
             Buyer Mint (Explorer)
           </LoadingButton>
+          <Popover
+            id='mouse-popoverB'
+            sx={{
+              pointerEvents: 'none',
+            }}
+            open={openPopB}
+            anchorEl={anchorElB}
+            anchorOrigin={{
+              vertical: 'top',
+              horizontal: 'left',
+            }}
+            transformOrigin={{
+              vertical: 'bottom',
+              horizontal: 'left',
+            }}
+            onClose={handlePopoverCloseB}
+          >
+            <iframe
+              id="imageB"
+              src={`https://explorer.solana.com/address/${formState["mintB"]}`}
+              height="500"
+              width="500"
+            />
+          </Popover>
         </Box>
       </div>
       <div>
@@ -617,6 +698,7 @@ export function TransferBox() {
               isSeller,
               hasDelegate,
               hasValidDelegate,
+              setHasDelegate,
               validAmount
             )}
           </div>
