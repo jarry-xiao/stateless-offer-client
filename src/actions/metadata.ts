@@ -8,6 +8,8 @@ import {
   import { deserializeUnchecked, serialize } from 'borsh';
   import BN from 'bn.js';
   import { findProgramAddress, StringPublicKey, toPublicKey } from '../utils';
+  import { TOKEN_METADATA_PROGRAM_ID } from '../utils';
+
   export const METADATA_PREFIX = 'metadata';
   export const EDITION = 'edition';
   export const RESERVATION = 'reservation';
@@ -1235,3 +1237,18 @@ import {
       )
     )[0];
   }
+
+export const getTokenMetadata = async (
+    mint: PublicKey,
+  ) => {
+    return (
+      await PublicKey.findProgramAddress(
+        [
+          Buffer.from('metadata'),
+          TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+          mint.toBuffer(),
+        ],
+        TOKEN_METADATA_PROGRAM_ID,
+      )
+    )[0];
+  };

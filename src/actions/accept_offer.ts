@@ -13,8 +13,8 @@ import {
 } from "../utils";
 import { Schema, serialize } from "borsh";
 import { TOKEN_PROGRAM_ID, Token, NATIVE_MINT } from "@solana/spl-token";
-import { STATELESS_ASK_PROGRAM_ID } from "../utils/";
-import { Metadata } from "./metadata";
+import { STATELESS_ASK_PROGRAM_ID, TOKEN_METADATA_PROGRAM_ID } from "../utils/";
+import { decodeMetadata, Metadata } from "./metadata";
 
 export class AcceptOfferArgs {
   instruction: number = 0;
@@ -236,6 +236,19 @@ export const acceptOfferInstructionWithMetadata = async (
   };
 };
 
+const getTokenMetadata = async (mint: PublicKey) => {
+  return (
+    await PublicKey.findProgramAddress(
+      [
+        Buffer.from("metadata"),
+        TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+        mint.toBuffer(),
+      ],
+      TOKEN_METADATA_PROGRAM_ID
+    )
+  )[0];
+};
+
 export const consolidateTokenAccounts = async (
   connection,
   mintA: PublicKey,
@@ -313,8 +326,10 @@ export const changeOffer = async (
   wallet: any,
   setHasValidDelegate: any,
   setHasDelegate: any,
+  metadata,
   approve = true
 ) => {
+  const hasMetadata = mintA.toBase58() in metadata;
   if (!wallet.publicKey) {
     notify({ message: "Wallet not connected!" });
     return false;
@@ -363,6 +378,32 @@ export const changeOffer = async (
     mintB.toBase58() === NATIVE_MINT.toBase58()
       ? wallet.publicKey
       : tokenAccountMintB;
+
+  if (hasMetadata && metadata) {
+    const fee = Math.floor(
+      (metadata[mintA.toBase58()].account.data.sellerFeeBasisPoints *
+        sizeB.toNumber()) /
+        10000
+    );
+    sizeB = new BN(sizeB.toNumber() - fee);
+  } else {
+    for (let i = 0; i < 5; ++i) {
+      const result = await connection.getAccountInfo(getTokenMetadata(mintA));
+      if (!result) {
+        try {
+          metadata = decodeMetadata(result.data);
+          const fee = Math.floor(
+            (metadata.data.sellerFeeBasisPoints * sizeB.toNumber()) / 10000
+          );
+          sizeB = new BN(sizeB.toNumber() - fee);
+          break;
+        } catch (e) {
+          console.log("Failed to decode metadata");
+        }
+      }
+    }
+  }
+
   const transferAuthority = (
     await PublicKey.findProgramAddress(
       [
@@ -428,10 +469,10 @@ export const trade = async (
   mintB: PublicKey,
   sizeA: BN,
   sizeB: BN,
-  hasMetadata: boolean,
-  metadata: Metadata | undefined,
+  metadata,
   wallet: any
 ) => {
+  const hasMetadata = mintA.toBase58() in metadata;
   if (!wallet.publicKey) {
     notify({ message: "Wallet not connected!" });
     return false;
@@ -506,6 +547,33 @@ export const trade = async (
     return false;
   }
 
+  let discountedSize = sizeB;
+
+  if (hasMetadata && metadata) {
+    const fee = Math.floor(
+      (metadata[mintA.toBase58()].account.data.sellerFeeBasisPoints *
+        sizeB.toNumber()) /
+        10000
+    );
+    discountedSize = new BN(discountedSize.toNumber() - fee);
+  } else {
+    for (let i = 0; i < 5; ++i) {
+      const result = await connection.getAccountInfo(getTokenMetadata(mintA));
+      if (!result) {
+        try {
+          metadata = decodeMetadata(result.data);
+          const fee = Math.floor(
+            (metadata.data.sellerFeeBasisPoints * sizeB.toNumber()) / 10000
+          );
+          discountedSize = new BN(discountedSize.toNumber() - fee);
+          break;
+        } catch (e) {
+          console.log("Failed to decode metadata");
+        }
+      }
+    }
+  }
+
   makerAccountMintB = isNative ? maker : makerAccountMintB;
   takerAccountMintB = isNative ? wallet.publicKey : takerAccountMintB;
   const [transferAuthority, bump] = await PublicKey.findProgramAddress(
@@ -515,7 +583,7 @@ export const trade = async (
       mintA.toBuffer(),
       mintB.toBuffer(),
       new Uint8Array(sizeA.toArray("le", 8)),
-      new Uint8Array(sizeB.toArray("le", 8)),
+      new Uint8Array(discountedSize.toArray("le", 8)),
     ],
     STATELESS_ASK_PROGRAM_ID
   );
@@ -538,6 +606,7 @@ export const trade = async (
       bump
     );
     const tradeIx = ix;
+    console.log("Executing trade (pure swap)");
     response = await Conn.sendTransactionWithRetry(
       connection,
       wallet,
@@ -547,8 +616,8 @@ export const trade = async (
     );
   } else if (metadata) {
     try {
-      let additionalCreatorKeys: any[] = [];
-      const creators = metadata.data.creators;
+      let additionalKeys: any[] = [];
+      const creators = metadata[mintA.toBase58()].account.data.creators;
       if (!creators) {
         notify({
           message:
@@ -556,12 +625,24 @@ export const trade = async (
         });
         return false;
       }
+      const metadataPubkey = metadata[mintA.toBase58()].pubkey;
+      if (!metadataPubkey) {
+        notify({
+          message: "Trade transaction failed: metadata account is undefined",
+        });
+        return false;
+      }
+      additionalKeys.push({
+        pubkey: metadataPubkey,
+        isSigner: false,
+        isWritable: false,
+      });
       for (const creator of creators) {
         const creatorPubkey = new PublicKey(creator.address);
-        additionalCreatorKeys.push({
+        additionalKeys.push({
           pubkey: creatorPubkey,
           isSigner: false,
-          isWritable: false,
+          isWritable: true,
         });
         if (!isNative) {
           let creatorTokenAccount = (
@@ -586,7 +667,7 @@ export const trade = async (
               mintB
             );
           }
-          additionalCreatorKeys.push({
+          additionalKeys.push({
             pubkey: creatorTokenAccount,
             isSigner: false,
             isWritable: true,
@@ -603,12 +684,13 @@ export const trade = async (
         mintA,
         mintB,
         transferAuthority,
-        additionalCreatorKeys,
+        additionalKeys,
         sizeA,
         sizeB,
         bump
       );
       const tradeIx = ix;
+      console.log("Executing trade (metadata and creators supplied)")
       response = await Conn.sendTransactionWithRetry(
         connection,
         wallet,
@@ -616,8 +698,9 @@ export const trade = async (
         signers,
         "max"
       );
-      paidCreatorFees = " (Creator Fees Paid)"
+      paidCreatorFees = " (Creator Fees Paid)";
     } catch (e) {
+      console.log(e);
       console.log("Encountered error while processing metadata");
     }
   }

@@ -28,27 +28,14 @@ import { PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { ENV, TokenInfo, TokenListProvider } from "@solana/spl-token-registry";
-import Popover from '@mui/material/Popover';
-import { STATELESS_ASK_PROGRAM_ID, TOKEN_METADATA_PROGRAM_ID } from "../../utils/";
-import { decodeMetadata } from "../../actions/metadata";
-
+import Popover from "@mui/material/Popover";
+import {
+  STATELESS_ASK_PROGRAM_ID,
+  TOKEN_METADATA_PROGRAM_ID,
+} from "../../utils/";
+import { decodeMetadata, Metadata, getTokenMetadata } from "../../actions/metadata";
 
 const MINTS = ["None", "SOL", "USDC", "USDT", "BTC", "ETH"];
-
-const getTokenMetadata = async (
-  mint: PublicKey,
-) => {
-  return (
-    await PublicKey.findProgramAddress(
-      [
-        Buffer.from('metadata'),
-        TOKEN_METADATA_PROGRAM_ID.toBuffer(),
-        mint.toBuffer(),
-      ],
-      TOKEN_METADATA_PROGRAM_ID,
-    )
-  )[0];
-};
 
 const getSize = (n: any, mint: any, mintCache: any) => {
   try {
@@ -60,10 +47,22 @@ const getSize = (n: any, mint: any, mintCache: any) => {
   }
 };
 
-const getDelegate = async (formState: any, mintCache: any) => {
+const getDelegate = async (
+  formState: any,
+  mintCache: any,
+  hasMetadata: boolean,
+  metadata 
+) => {
   try {
     const sizeA = getSize(formState.sizeA, formState.mintA, mintCache);
-    const sizeB = getSize(formState.sizeB, formState.mintB, mintCache);
+    let sizeB = getSize(formState.sizeB, formState.mintB, mintCache);
+    console.log("Get Delegate", hasMetadata, metadata)
+    if (hasMetadata && metadata) {
+      const fee = Math.floor(
+        (metadata.account.data.sellerFeeBasisPoints * sizeB) / 10000
+      );
+      sizeB -= fee;
+    }
     return (
       await PublicKey.findProgramAddress(
         [
@@ -74,10 +73,12 @@ const getDelegate = async (formState: any, mintCache: any) => {
           new Uint8Array(new BN(sizeA).toArray("le", 8)),
           new Uint8Array(new BN(sizeB).toArray("le", 8)),
         ],
-        STATELESS_ASK_PROGRAM_ID,
+        STATELESS_ASK_PROGRAM_ID
       )
     )[0];
-  } catch {
+  } catch (e) {
+    console.log(e)
+    console.log("Failed to get delegate. Metadata:", metadata)
     return null;
   }
 };
@@ -106,8 +107,6 @@ const getDefaultFormState = () => {
   return defaultState;
 };
 
-
-
 export function TransferBox() {
   const connection = useConnection();
   const wallet = useWallet();
@@ -126,9 +125,7 @@ export function TransferBox() {
   const [anchorElB, setAnchorElB] = useState(null);
   const [openPopA, setOpenPopA] = useState(false);
   const [openPopB, setOpenPopB] = useState(false);
-  const [metadata, setMetadata] = useState();
-  const [hasMetadata, setHasMetadata] = useState(false);
-
+  const [metadata, setMetadata] = useState({});
   const [tokenMap, setTokenMap] = useState<Map<string, TokenInfo>>(new Map());
 
   useEffect(() => {
@@ -175,7 +172,12 @@ export function TransferBox() {
         }
       }
 
-      const delegate = await getDelegate(formState, mintCache);
+      const delegate = await getDelegate(
+        formState,
+        mintCache,
+        formState.mintA in metadata,
+        metadata[formState.mintA]
+      );
       setHasDelegate(tokenAccount.delegateOption !== 0);
       if (
         tokenAccount.delegate &&
@@ -189,7 +191,7 @@ export function TransferBox() {
       }
     };
     validate();
-  }, [accountState, mintCache, formState]);
+  }, [accountState, mintCache, formState, metadata]);
 
   useEffect(() => {
     let subId;
@@ -290,29 +292,38 @@ export function TransferBox() {
     fetchMintState();
   }, [mintCache, formState.mintA, formState.mintB, connection]);
 
-  useEffect(
-    () => {
-      const getMetadata = async () => {
-        if (!(formState.mintA in mintCache)) {
-          return;
-        }
-        const metadataPubkey = await getTokenMetadata(new PublicKey(formState.mintA));
+  useEffect(() => {
+    const getMetadata = async () => {
+      if (!(formState.mintA in mintCache)) {
+        return;
+      }
+      if (formState.mintA in metadata) {
+        return;
+      }
+      const metadataPubkey: any = await getTokenMetadata(
+        new PublicKey(formState.mintA)
+      );
+      for (let i = 0; i < 5; ++i) {
         const result = await connection.getAccountInfo(metadataPubkey);
         if (result) {
           try {
             const meta: any = decodeMetadata(result.data);
-            setMetadata(meta);
-            setHasMetadata(true);
+            setMetadata({...metadata, [formState.mintA]: {pubkey: metadataPubkey, account: meta}})
+            console.log(meta)
+            break;
           } catch {
             console.log("Invalid metadata account");
           }
         }
-
       }
-      getMetadata();
-    },
-    [mintCache, formState.mintA, connection],
-  )
+    };
+    getMetadata();
+  }, [
+    mintCache,
+    formState.mintA,
+    setMetadata,
+    connection,
+  ]);
 
   const setField = (name: any) => {
     const setFieldWithName = (e) => {
@@ -348,22 +359,22 @@ export function TransferBox() {
   const handlePopoverOpenA = (e) => {
     setAnchorElA(e.currentTarget);
     setOpenPopA(true);
-  }
+  };
 
   const handlePopoverCloseA = (e) => {
     setAnchorElA(null);
     setOpenPopA(false);
-  }
+  };
 
   const handlePopoverOpenB = (e) => {
     setAnchorElB(e.currentTarget);
     setOpenPopB(true);
-  }
+  };
 
   const handlePopoverCloseB = (e) => {
     setAnchorElB(null);
     setOpenPopB(false);
-  }
+  };
 
   const getTokenKeys = (tokenMap, mintStr) => {
     let keys: any[] = [];
@@ -373,7 +384,8 @@ export function TransferBox() {
         inputProps={{
           sx: { marginLeft: "15px" },
           value: getField(mintStr),
-          placeholder: "Enter the desired mint public key (or select from known mints)",
+          placeholder:
+            "Enter the desired mint public key (or select from known mints)",
         }}
         value={getField(mintStr)}
         fullWidth
@@ -385,7 +397,9 @@ export function TransferBox() {
       if (!tokenMap.get(mint)) {
         if (mint === "None") {
           keys.push(
-          <MenuItem value="" sx={{ fontStyle: "italic" }}>{mint}</MenuItem>
+            <MenuItem value="" sx={{ fontStyle: "italic" }}>
+              {mint}
+            </MenuItem>
           );
         }
         continue;
@@ -448,6 +462,7 @@ export function TransferBox() {
                       wallet,
                       setHasValidDelegate,
                       setHasDelegate,
+                      metadata
                     );
                   } catch (e) {
                     return;
@@ -480,6 +495,7 @@ export function TransferBox() {
                       wallet,
                       setHasValidDelegate,
                       setHasDelegate,
+                      metadata,
                       false
                     );
                   } catch (e) {
@@ -514,7 +530,6 @@ export function TransferBox() {
                       new BN(
                         getSize(formState.sizeB, formState.mintB, mintCache)
                       ),
-                      hasMetadata,
                       metadata,
                       wallet
                     );
@@ -560,25 +575,25 @@ export function TransferBox() {
             color="secondary"
             sx={{ width: "30ch" }}
             variant="contained"
-            aria-owns={openPopA ? 'mouse-popoverA' : undefined}
+            aria-owns={openPopA ? "mouse-popoverA" : undefined}
             aria-haspopup="true"
           >
             Seller Mint (Explorer)
           </LoadingButton>
           <Popover
-            id='mouse-popoverA'
+            id="mouse-popoverA"
             sx={{
-              pointerEvents: 'none',
+              pointerEvents: "none",
             }}
             open={openPopA}
             anchorEl={anchorElA}
             anchorOrigin={{
-              vertical: 'top',
-              horizontal: 'left',
+              vertical: "top",
+              horizontal: "left",
             }}
             transformOrigin={{
-              vertical: 'bottom',
-              horizontal: 'left',
+              vertical: "bottom",
+              horizontal: "left",
             }}
             onClose={handlePopoverCloseA}
           >
@@ -602,25 +617,25 @@ export function TransferBox() {
             color="secondary"
             sx={{ width: "30ch", marginLeft: "10px" }}
             variant="contained"
-            aria-owns={openPopB ? 'mouse-popoverB' : undefined}
+            aria-owns={openPopB ? "mouse-popoverB" : undefined}
             aria-haspopup="true"
           >
             Buyer Mint (Explorer)
           </LoadingButton>
           <Popover
-            id='mouse-popoverB'
+            id="mouse-popoverB"
             sx={{
-              pointerEvents: 'none',
+              pointerEvents: "none",
             }}
             open={openPopB}
             anchorEl={anchorElB}
             anchorOrigin={{
-              vertical: 'top',
-              horizontal: 'left',
+              vertical: "top",
+              horizontal: "left",
             }}
             transformOrigin={{
-              vertical: 'bottom',
-              horizontal: 'left',
+              vertical: "bottom",
+              horizontal: "left",
             }}
             onClose={handlePopoverCloseB}
           >
@@ -725,9 +740,7 @@ export function TransferBox() {
               }}
             />
           </div>
-          <div style={{ marginTop: "10px" }}>
-            {displayActions()}
-          </div>
+          <div style={{ marginTop: "10px" }}>{displayActions()}</div>
         </Box>
       </div>
     </div>
