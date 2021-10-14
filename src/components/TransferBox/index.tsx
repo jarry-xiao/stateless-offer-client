@@ -478,15 +478,14 @@ export function TransferBox() {
         value={getField(mintStr)}
         fullWidth
         onChange={setField(mintStr)}
+        onKeyDown={(e) => e.stopPropagation()}
       ></Input>
     );
     for (const mint of MINTS) {
       if (!tokenMap.get(mint)) {
         if (mint === "None") {
           keys.push(
-            <MenuItem value="" sx={{ fontStyle: "italic" }}>
-              {mint}
-            </MenuItem>
+          <MenuItem value="" sx={{ fontStyle: "italic" }}>{mint}</MenuItem>
           );
         }
         continue;
@@ -546,7 +545,7 @@ export function TransferBox() {
           >
             <iframe
               id="imageA"
-              src={`https://explorer.solana.com/address/${formState["mintA"]}`}
+              src={`https://explorer.solana.com/address/${formState["mintA"]}/?cluster=${env}`}
               height="500"
               width="500"
             />
@@ -588,7 +587,7 @@ export function TransferBox() {
           >
             <iframe
               id="imageB"
-              src={`https://explorer.solana.com/address/${formState["mintB"]}`}
+              src={`https://explorer.solana.com/address/${formState["mintB"]}/?cluster=${env}`}
               height="500"
               width="500"
             />
