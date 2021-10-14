@@ -13,14 +13,12 @@ import {
 } from "../utils";
 import { Schema, serialize } from "borsh";
 import { TOKEN_PROGRAM_ID, Token, NATIVE_MINT } from "@solana/spl-token";
-
-// Hard-coded devnet key for now
-export const PROGRAM_ID = new PublicKey(
-  "SAtnofysr9Uxk7m9YphxwfL5E3wyZJWUzjwA29Gw3tQ"
-);
+import { STATELESS_ASK_PROGRAM_ID } from "../utils/";
+import { Metadata } from "./metadata";
 
 export class AcceptOfferArgs {
   instruction: number = 0;
+  hasMetadata: boolean;
   makerSize: BN;
   takerSize: BN;
   bumpSeed: number;
@@ -32,6 +30,7 @@ export class AcceptOfferArgs {
         kind: "struct",
         fields: [
           ["instruction", "u8"],
+          ["hasMetadata", "u8"],
           ["makerSize", "u64"],
           ["takerSize", "u64"],
           ["bumpSeed", "u8"],
@@ -40,14 +39,20 @@ export class AcceptOfferArgs {
     ],
   ]);
 
-  constructor(args: { makerSize: BN; takerSize: BN; bumpSeed: number }) {
+  constructor(args: {
+    hasMetadata: boolean;
+    makerSize: BN;
+    takerSize: BN;
+    bumpSeed: number;
+  }) {
+    this.hasMetadata = args.hasMetadata;
     this.makerSize = args.makerSize;
     this.takerSize = args.takerSize;
     this.bumpSeed = args.bumpSeed;
   }
 }
 
-export const acceptOfferInstruction = async (
+export const acceptOfferInstructionNoMetadata = async (
   makerWallet: PublicKey,
   takerWallet: PublicKey,
   makerSrc: PublicKey,
@@ -61,7 +66,12 @@ export const acceptOfferInstruction = async (
   takerSize: BN,
   bumpSeed: number
 ) => {
-  let settings = new AcceptOfferArgs({ makerSize, takerSize, bumpSeed });
+  let settings = new AcceptOfferArgs({
+    hasMetadata: false,
+    makerSize,
+    takerSize,
+    bumpSeed,
+  });
   const data = Buffer.from(serialize(AcceptOfferArgs.schema, settings));
   let keys = [
     {
@@ -126,7 +136,100 @@ export const acceptOfferInstruction = async (
     ix: [
       new TransactionInstruction({
         keys,
-        programId: PROGRAM_ID,
+        programId: STATELESS_ASK_PROGRAM_ID,
+        data,
+      }),
+    ],
+  };
+};
+
+export const acceptOfferInstructionWithMetadata = async (
+  makerWallet: PublicKey,
+  takerWallet: PublicKey,
+  makerSrc: PublicKey,
+  makerDst: PublicKey,
+  takerSrc: PublicKey,
+  takerDst: PublicKey,
+  makerSrcMint: PublicKey,
+  takerSrcMint: PublicKey,
+  transferAuthority: PublicKey,
+  additionalKeys: any[],
+  makerSize: BN,
+  takerSize: BN,
+  bumpSeed: number
+) => {
+  let settings = new AcceptOfferArgs({
+    hasMetadata: true,
+    makerSize,
+    takerSize,
+    bumpSeed,
+  });
+  const data = Buffer.from(serialize(AcceptOfferArgs.schema, settings));
+  let keys = [
+    {
+      pubkey: makerWallet,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: takerWallet,
+      isSigner: true,
+      isWritable: false,
+    },
+    {
+      pubkey: makerSrc,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: makerDst,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: takerSrc,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: takerDst,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: makerSrcMint,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: takerSrcMint,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: transferAuthority,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: TOKEN_PROGRAM_ID,
+      isSigner: false,
+      isWritable: false,
+    },
+  ];
+  if (takerSrcMint.toBase58() === NATIVE_MINT.toBase58()) {
+    keys.push({
+      pubkey: SystemProgram.programId,
+      isSigner: false,
+      isWritable: false,
+    });
+  }
+  keys.push(...additionalKeys);
+  return {
+    ix: [
+      new TransactionInstruction({
+        keys,
+        programId: STATELESS_ASK_PROGRAM_ID,
         data,
       }),
     ],
@@ -138,7 +241,7 @@ export const consolidateTokenAccounts = async (
   mintA: PublicKey,
   wallet: any,
   nonATAs: any[],
-  setNonATAs: any,
+  setNonATAs: any
 ) => {
   if (!wallet.publicKey) {
     notify({ message: "Wallet not connected!" });
@@ -163,21 +266,21 @@ export const consolidateTokenAccounts = async (
     wallet.publicKey,
     mintA
   );
-  for (const {pubkey, size} of nonATAs) {
+  for (const { pubkey, size } of nonATAs) {
     const transferIx = Token.createTransferInstruction(
       TOKEN_PROGRAM_ID,
       pubkey,
       tokenAccountMintA,
       wallet.publicKey,
       [],
-      size,
+      size
     );
     const closeIx = Token.createCloseAccountInstruction(
       TOKEN_PROGRAM_ID,
       pubkey,
       wallet.publicKey,
       wallet.publicKey,
-      [],
+      []
     );
     instructions.push(...[transferIx, closeIx]);
   }
@@ -192,11 +295,13 @@ export const consolidateTokenAccounts = async (
     notify({ message: "Consolidation Failed" });
     return false;
   } else {
-    notify({ message: "Successfully merged all token accounts into 1 Assoicated Token Account" });
+    notify({
+      message:
+        "Successfully merged all token accounts into 1 Assoicated Token Account",
+    });
     setNonATAs([]);
     return true;
   }
-
 };
 
 export const changeOffer = async (
@@ -206,6 +311,7 @@ export const changeOffer = async (
   sizeA: BN,
   sizeB: BN,
   wallet: any,
+  setHasValidDelegate: any,
   setHasDelegate: any,
   approve = true
 ) => {
@@ -257,17 +363,19 @@ export const changeOffer = async (
     mintB.toBase58() === NATIVE_MINT.toBase58()
       ? wallet.publicKey
       : tokenAccountMintB;
-  const transferAuthority = (await PublicKey.findProgramAddress(
-    [
-      Buffer.from("stateless_offer"),
-      wallet.publicKey.toBuffer(),
-      mintA.toBuffer(),
-      mintB.toBuffer(),
-      new Uint8Array(sizeA.toArray("le", 8)),
-      new Uint8Array(sizeB.toArray("le", 8)),
-    ],
-    PROGRAM_ID
-  ))[0];
+  const transferAuthority = (
+    await PublicKey.findProgramAddress(
+      [
+        Buffer.from("stateless_offer"),
+        wallet.publicKey.toBuffer(),
+        mintA.toBuffer(),
+        mintB.toBuffer(),
+        new Uint8Array(sizeA.toArray("le", 8)),
+        new Uint8Array(sizeB.toArray("le", 8)),
+      ],
+      STATELESS_ASK_PROGRAM_ID
+    )
+  )[0];
   let authIx;
   if (approve) {
     authIx = Token.createApproveInstruction(
@@ -299,10 +407,15 @@ export const changeOffer = async (
   } else {
     if (approve) {
       setHasDelegate(true);
-      notify({ message: `Successfully assigned delegate (${transferAuthority.toBase58()})` });
+      setHasValidDelegate(true);
+      notify({
+        message: `Successfully assigned delegate (${transferAuthority.toBase58()})`,
+      });
     } else {
       setHasDelegate(false);
-      notify({ message: `Successfully removed delegate (${transferAuthority.toBase58()})` });
+      notify({
+        message: `Successfully removed delegate (${transferAuthority.toBase58()})`,
+      });
     }
     return true;
   }
@@ -315,6 +428,8 @@ export const trade = async (
   mintB: PublicKey,
   sizeA: BN,
   sizeB: BN,
+  hasMetadata: boolean,
+  metadata: Metadata | undefined,
   wallet: any
 ) => {
   if (!wallet.publicKey) {
@@ -384,19 +499,15 @@ export const trade = async (
   const hasATAMintB = await connection.getAccountInfo(
     new PublicKey(takerAccountMintB)
   );
-  console.log(mintB.toBase58());
-  console.log(NATIVE_MINT);
-  if (!hasATAMintB && mintB.toBase58() !== NATIVE_MINT.toBase58()) {
+
+  const isNative = mintB.toBase58() === NATIVE_MINT.toBase58();
+  if (!hasATAMintB && !isNative) {
     notify({ message: "Taker must have ATA for mint B" });
     return false;
   }
 
-  makerAccountMintB =
-    mintB.toBase58() === NATIVE_MINT.toBase58() ? maker : makerAccountMintB;
-  takerAccountMintB =
-    mintB.toBase58() === NATIVE_MINT.toBase58()
-      ? wallet.publicKey
-      : takerAccountMintB;
+  makerAccountMintB = isNative ? maker : makerAccountMintB;
+  takerAccountMintB = isNative ? wallet.publicKey : takerAccountMintB;
   const [transferAuthority, bump] = await PublicKey.findProgramAddress(
     [
       Buffer.from("stateless_offer"),
@@ -406,37 +517,116 @@ export const trade = async (
       new Uint8Array(sizeA.toArray("le", 8)),
       new Uint8Array(sizeB.toArray("le", 8)),
     ],
-    PROGRAM_ID
+    STATELESS_ASK_PROGRAM_ID
   );
 
-  let { ix } = await acceptOfferInstruction(
-    maker,
-    wallet.publicKey,
-    makerAccountMintA,
-    makerAccountMintB,
-    takerAccountMintB,
-    takerAccountMintA,
-    mintA,
-    mintB,
-    transferAuthority,
-    sizeA,
-    sizeB,
-    bump
-  );
-  const tradeIx = ix;
+  let response;
+  let paidCreatorFees = "";
+  if (!hasMetadata) {
+    let { ix } = await acceptOfferInstructionNoMetadata(
+      maker,
+      wallet.publicKey,
+      makerAccountMintA,
+      makerAccountMintB,
+      takerAccountMintB,
+      takerAccountMintA,
+      mintA,
+      mintB,
+      transferAuthority,
+      sizeA,
+      sizeB,
+      bump
+    );
+    const tradeIx = ix;
+    response = await Conn.sendTransactionWithRetry(
+      connection,
+      wallet,
+      [...ataIx, ...tradeIx],
+      signers,
+      "max"
+    );
+  } else if (metadata) {
+    try {
+      let additionalCreatorKeys: any[] = [];
+      const creators = metadata.data.creators;
+      if (!creators) {
+        notify({
+          message:
+            "Trade transaction failed: specified metadata has invalid creators",
+        });
+        return false;
+      }
+      for (const creator of creators) {
+        const creatorPubkey = new PublicKey(creator.address);
+        additionalCreatorKeys.push({
+          pubkey: creatorPubkey,
+          isSigner: false,
+          isWritable: false,
+        });
+        if (!isNative) {
+          let creatorTokenAccount = (
+            await PublicKey.findProgramAddress(
+              [
+                creatorPubkey.toBuffer(),
+                TOKEN_PROGRAM_ID.toBuffer(),
+                mintB.toBuffer(),
+              ],
+              SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID
+            )
+          )[0];
+          const hasATACreator = await connection.getAccountInfo(
+            creatorTokenAccount
+          );
+          if (!hasATACreator) {
+            createAssociatedTokenAccountInstruction(
+              ataIx,
+              creatorTokenAccount,
+              wallet.publicKey,
+              creatorPubkey,
+              mintB
+            );
+          }
+          additionalCreatorKeys.push({
+            pubkey: creatorTokenAccount,
+            isSigner: false,
+            isWritable: true,
+          });
+        }
+      }
+      let { ix } = await acceptOfferInstructionWithMetadata(
+        maker,
+        wallet.publicKey,
+        makerAccountMintA,
+        makerAccountMintB,
+        takerAccountMintB,
+        takerAccountMintA,
+        mintA,
+        mintB,
+        transferAuthority,
+        additionalCreatorKeys,
+        sizeA,
+        sizeB,
+        bump
+      );
+      const tradeIx = ix;
+      response = await Conn.sendTransactionWithRetry(
+        connection,
+        wallet,
+        [...ataIx, ...tradeIx],
+        signers,
+        "max"
+      );
+      paidCreatorFees = " (Creator Fees Paid)"
+    } catch (e) {
+      console.log("Encountered error while processing metadata");
+    }
+  }
 
-  const response = await Conn.sendTransactionWithRetry(
-    connection,
-    wallet,
-    [...ataIx, ...tradeIx],
-    signers,
-    "max"
-  );
   if (!response) {
     notify({ message: "Trade transaction failed" });
     return false;
   } else {
-    notify({ message: "Trade successful" });
+    notify({ message: `Trade successful${paidCreatorFees}` });
     return true;
   }
 };

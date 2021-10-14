@@ -1,6 +1,7 @@
 import {
   TOKEN_PROGRAM_ID,
   SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID,
+  TOKEN_METADATA_PROGRAM_ID,
   BPF_UPGRADE_LOADER_ID,
   SYSTEM,
   MEMO_ID,
@@ -15,6 +16,6 @@ export const programIds = () => {
     bpf_upgrade_loader: BPF_UPGRADE_LOADER_ID,
     system: SYSTEM,
     memo: MEMO_ID,
-    // store: STORE,
+    metadata: TOKEN_METADATA_PROGRAM_ID,
   };
 };

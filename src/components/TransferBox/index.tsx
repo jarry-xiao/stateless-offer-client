@@ -29,8 +29,26 @@ import BN from "bn.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { ENV, TokenInfo, TokenListProvider } from "@solana/spl-token-registry";
 import Popover from '@mui/material/Popover';
+import { STATELESS_ASK_PROGRAM_ID, TOKEN_METADATA_PROGRAM_ID } from "../../utils/";
+import { decodeMetadata } from "../../actions/metadata";
+
 
 const MINTS = ["None", "SOL", "USDC", "USDT", "BTC", "ETH"];
+
+const getTokenMetadata = async (
+  mint: PublicKey,
+) => {
+  return (
+    await PublicKey.findProgramAddress(
+      [
+        Buffer.from('metadata'),
+        TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+        mint.toBuffer(),
+      ],
+      TOKEN_METADATA_PROGRAM_ID,
+    )
+  )[0];
+};
 
 const getSize = (n: any, mint: any, mintCache: any) => {
   try {
@@ -56,7 +74,7 @@ const getDelegate = async (formState: any, mintCache: any) => {
           new Uint8Array(new BN(sizeA).toArray("le", 8)),
           new Uint8Array(new BN(sizeB).toArray("le", 8)),
         ],
-        new PublicKey("SAtnofysr9Uxk7m9YphxwfL5E3wyZJWUzjwA29Gw3tQ")
+        STATELESS_ASK_PROGRAM_ID,
       )
     )[0];
   } catch {
@@ -88,151 +106,7 @@ const getDefaultFormState = () => {
   return defaultState;
 };
 
-const displayActions = (
-  connection,
-  wallet: any,
-  formState: any,
-  mintCache: any,
-  nonATAs: any,
-  setNonATAs: any,
-  isSeller,
-  hasDelegate,
-  hasValidDelegate,
-  setHasDelegate,
-  validAmount
-) => {
-  const mintEntered =
-    formState.mintA in mintCache && formState.mintB in mintCache;
-  const sizeA = getSize(formState.sizeA, formState.mintA, mintCache);
-  const sizeB = getSize(formState.sizeB, formState.mintB, mintCache);
-  if (!mintEntered || sizeA <= 0 || sizeB <= 0) {
-    return <div></div>;
-  }
-  if (isSeller && nonATAs && nonATAs.length && nonATAs.length > 0) {
-    return (
-      <Button
-        variant="contained"
-        color="success"
-        onClick={() => {
-          if (formState) {
-            try {
-              consolidateTokenAccounts(
-                connection,
-                new PublicKey(formState.mintA),
-                wallet,
-                nonATAs,
-                setNonATAs
-              );
-            } catch (e) {
-              return;
-            }
-          }
-        }}
-        sx={{ marginRight: "4px" }}
-      >
-        Consolidate Token Accounts
-      </Button>
-    );
-  }
-  if (isSeller) {
-    return (
-      <div>
-        {validAmount && !hasValidDelegate && (
-          <Button
-            variant="contained"
-            onClick={() => {
-              if (formState) {
-                try {
-                  changeOffer(
-                    connection,
-                    new PublicKey(formState.mintA),
-                    new PublicKey(formState.mintB),
-                    new BN(sizeA),
-                    new BN(sizeB),
-                    wallet,
-                    setHasDelegate,
-                  );
-                } catch (e) {
-                  return;
-                }
-              }
-            }}
-            sx={{ marginRight: "4px" }}
-          >
-            Open New Offer
-          </Button>
-        )}
-        {hasDelegate && (
-          <Button
-            variant="contained"
-            color="error"
-            sx={{ marginLeft: "10px" }}
-            onClick={() => {
-              if (formState) {
-                try {
-                  changeOffer(
-                    connection,
-                    new PublicKey(formState.mintA),
-                    new PublicKey(formState.mintB),
-                    new BN(
-                      getSize(formState.sizeA, formState.mintA, mintCache)
-                    ),
-                    new BN(
-                      getSize(formState.sizeB, formState.mintB, mintCache)
-                    ),
-                    wallet,
-                    setHasDelegate,
-                    false
-                  );
-                } catch (e) {
-                  return;
-                }
-              }
-            }}
-          >
-            Close Existing Offer
-          </Button>
-        )}
-      </div>
-    );
-  } else {
-    if (hasValidDelegate && validAmount) {
-      return (
-        <div>
-          <Button
-            variant="contained"
-            color="success"
-            onClick={() => {
-              if (formState) {
-                try {
-                  trade(
-                    connection,
-                    new PublicKey(formState.maker),
-                    new PublicKey(formState.mintA),
-                    new PublicKey(formState.mintB),
-                    new BN(
-                      getSize(formState.sizeA, formState.mintA, mintCache)
-                    ),
-                    new BN(
-                      getSize(formState.sizeB, formState.mintB, mintCache)
-                    ),
-                    wallet
-                  );
-                } catch (e) {
-                  return;
-                }
-              }
-            }}
-          >
-            Trade
-          </Button>
-        </div>
-      );
-    } else {
-      return <div></div>;
-    }
-  }
-};
+
 
 export function TransferBox() {
   const connection = useConnection();
@@ -247,11 +121,13 @@ export function TransferBox() {
   const [hasValidDelegate, setHasValidDelegate] = useState(false);
   const [openA, setOpenA] = useState(false);
   const [openB, setOpenB] = useState(false);
-  const [nonATAs, setNonATAs] = useState();
+  const [nonATAs, setNonATAs] = useState([]);
   const [anchorElA, setAnchorElA] = useState(null);
   const [anchorElB, setAnchorElB] = useState(null);
   const [openPopA, setOpenPopA] = useState(false);
   const [openPopB, setOpenPopB] = useState(false);
+  const [metadata, setMetadata] = useState();
+  const [hasMetadata, setHasMetadata] = useState(false);
 
   const [tokenMap, setTokenMap] = useState<Map<string, TokenInfo>>(new Map());
 
@@ -414,6 +290,30 @@ export function TransferBox() {
     fetchMintState();
   }, [mintCache, formState.mintA, formState.mintB, connection]);
 
+  useEffect(
+    () => {
+      const getMetadata = async () => {
+        if (!(formState.mintA in mintCache)) {
+          return;
+        }
+        const metadataPubkey = await getTokenMetadata(new PublicKey(formState.mintA));
+        const result = await connection.getAccountInfo(metadataPubkey);
+        if (result) {
+          try {
+            const meta: any = decodeMetadata(result.data);
+            setMetadata(meta);
+            setHasMetadata(true);
+          } catch {
+            console.log("Invalid metadata account");
+          }
+        }
+
+      }
+      getMetadata();
+    },
+    [mintCache, formState.mintA, connection],
+  )
+
   const setField = (name: any) => {
     const setFieldWithName = (e) => {
       setFormState({ ...formState, [name]: e.target.value });
@@ -493,6 +393,145 @@ export function TransferBox() {
       keys.push(<MenuItem value={tokenMap.get(mint).address}>{mint}</MenuItem>);
     }
     return keys;
+  };
+
+  const displayActions = () => {
+    const mintEntered =
+      formState.mintA in mintCache && formState.mintB in mintCache;
+    const sizeA = getSize(formState.sizeA, formState.mintA, mintCache);
+    const sizeB = getSize(formState.sizeB, formState.mintB, mintCache);
+    if (!mintEntered || sizeA <= 0 || sizeB <= 0) {
+      return <div></div>;
+    }
+
+    if (isSeller && nonATAs && nonATAs.length && nonATAs.length > 0) {
+      return (
+        <Button
+          variant="contained"
+          color="success"
+          onClick={() => {
+            if (formState) {
+              try {
+                consolidateTokenAccounts(
+                  connection,
+                  new PublicKey(formState.mintA),
+                  wallet,
+                  nonATAs,
+                  setNonATAs
+                );
+              } catch (e) {
+                return;
+              }
+            }
+          }}
+          sx={{ marginRight: "4px" }}
+        >
+          Consolidate Token Accounts
+        </Button>
+      );
+    }
+    if (isSeller) {
+      return (
+        <div>
+          {validAmount && !hasValidDelegate && (
+            <Button
+              variant="contained"
+              onClick={() => {
+                if (formState) {
+                  try {
+                    changeOffer(
+                      connection,
+                      new PublicKey(formState.mintA),
+                      new PublicKey(formState.mintB),
+                      new BN(sizeA),
+                      new BN(sizeB),
+                      wallet,
+                      setHasValidDelegate,
+                      setHasDelegate,
+                    );
+                  } catch (e) {
+                    return;
+                  }
+                }
+              }}
+              sx={{ marginRight: "4px" }}
+            >
+              Open New Offer
+            </Button>
+          )}
+          {hasDelegate && (
+            <Button
+              variant="contained"
+              color="error"
+              sx={{ marginLeft: "10px" }}
+              onClick={() => {
+                if (formState) {
+                  try {
+                    changeOffer(
+                      connection,
+                      new PublicKey(formState.mintA),
+                      new PublicKey(formState.mintB),
+                      new BN(
+                        getSize(formState.sizeA, formState.mintA, mintCache)
+                      ),
+                      new BN(
+                        getSize(formState.sizeB, formState.mintB, mintCache)
+                      ),
+                      wallet,
+                      setHasValidDelegate,
+                      setHasDelegate,
+                      false
+                    );
+                  } catch (e) {
+                    return;
+                  }
+                }
+              }}
+            >
+              Close Existing Offer
+            </Button>
+          )}
+        </div>
+      );
+    } else {
+      if (hasValidDelegate && validAmount) {
+        return (
+          <div>
+            <Button
+              variant="contained"
+              color="success"
+              onClick={() => {
+                if (formState) {
+                  try {
+                    trade(
+                      connection,
+                      new PublicKey(formState.maker),
+                      new PublicKey(formState.mintA),
+                      new PublicKey(formState.mintB),
+                      new BN(
+                        getSize(formState.sizeA, formState.mintA, mintCache)
+                      ),
+                      new BN(
+                        getSize(formState.sizeB, formState.mintB, mintCache)
+                      ),
+                      hasMetadata,
+                      metadata,
+                      wallet
+                    );
+                  } catch (e) {
+                    return;
+                  }
+                }
+              }}
+            >
+              Trade
+            </Button>
+          </div>
+        );
+      } else {
+        return <div></div>;
+      }
+    }
   };
 
   return (
@@ -687,19 +726,7 @@ export function TransferBox() {
             />
           </div>
           <div style={{ marginTop: "10px" }}>
-            {displayActions(
-              connection,
-              wallet,
-              formState,
-              mintCache,
-              nonATAs,
-              setNonATAs,
-              isSeller,
-              hasDelegate,
-              hasValidDelegate,
-              setHasDelegate,
-              validAmount
-            )}
+            {displayActions()}
           </div>
         </Box>
       </div>

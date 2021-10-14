@@ -52,3 +52,9 @@ export const BPF_UPGRADE_LOADER_ID = new PublicKey('BPFLoaderUpgradeab1e11111111
 export const MEMO_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
 
 export const SYSTEM = new PublicKey('11111111111111111111111111111111');
+
+export const TOKEN_METADATA_PROGRAM_ID = new PublicKey(
+  'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s',
+);
+
+export const STATELESS_ASK_PROGRAM_ID = new PublicKey("SA2M8fabGSNbudhRtggcASqFHAsBGmRMhm4UNBM1aCo");
