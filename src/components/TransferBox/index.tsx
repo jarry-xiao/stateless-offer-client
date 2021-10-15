@@ -597,12 +597,8 @@ export function TransferBox() {
             }}
             onClose={handlePopoverCloseA}
           >
-            <iframe
-              id="imageA"
-              src={`https://explorer.solana.com/address/${formState["mintA"]}/?cluster=${env}`}
-              height="500"
-              width="500"
-            />
+            <object data={`https://explorer.solana.com/address/${formState["mintA"]}/?cluster=${env}`} width="500" height="500">
+            </object>
           </Popover>
           <LoadingButton
             onClick={() => {
@@ -639,12 +635,8 @@ export function TransferBox() {
             }}
             onClose={handlePopoverCloseB}
           >
-            <iframe
-              id="imageB"
-              src={`https://explorer.solana.com/address/${formState["mintB"]}/?cluster=${env}`}
-              height="500"
-              width="500"
-            />
+            <object data={`https://explorer.solana.com/address/${formState["mintB"]}/?cluster=${env}`} width="500" height="500">
+            </object>
           </Popover>
         </Box>
       </div>
