@@ -374,8 +374,9 @@ export const changeOffer = async (
     );
     sizeB = new BN(sizeB.toNumber() - fee);
   } else {
-    const result = await connection.getAccountInfo(getTokenMetadata(mintA));
-    if (!result) {
+    const metadataPubkey = await getTokenMetadata(mintA)
+    const result = await connection.getAccountInfo(metadataPubkey);
+    if (result) {
       try {
         metadata = decodeMetadata(result.data);
         const fee = Math.floor(
@@ -386,6 +387,8 @@ export const changeOffer = async (
         notify({message: "Invalid metadata account for mint"});
         return false;
       }
+    } else {
+      console.log("No metadata found for mint")
     }
   }
 
@@ -455,9 +458,10 @@ export const trade = async (
   sizeA: BN,
   sizeB: BN,
   metadata,
+  setHasValidDelegate,
   wallet: any
 ) => {
-  const hasMetadata = mintA.toBase58() in metadata;
+  let hasMetadata = mintA.toBase58() in metadata;
   if (!wallet.publicKey) {
     notify({ message: "Wallet not connected!" });
     return false;
@@ -542,14 +546,19 @@ export const trade = async (
     );
     discountedSize = new BN(discountedSize.toNumber() - fee);
   } else {
-    const result = await connection.getAccountInfo(getTokenMetadata(mintA));
-    if (!result) {
+    // In the off chance that hasMetadata is false, but this is still an NFT
+    // we want to double check to make sure there is no metadata account
+    const metadataPubkey = await getTokenMetadata(mintA)
+    const result = await connection.getAccountInfo(metadataPubkey);
+    if (result) {
       try {
-        metadata = decodeMetadata(result.data);
+        const metadataStruct = decodeMetadata(result.data);
         const fee = Math.floor(
-          (metadata.data.sellerFeeBasisPoints * sizeB.toNumber()) / 10000
+          (metadataStruct.data.sellerFeeBasisPoints * discountedSize.toNumber()) / 10000
         );
-        sizeB = new BN(sizeB.toNumber() - fee);
+        discountedSize = new BN(discountedSize.toNumber() - fee);
+        hasMetadata = true;
+        metadata = {[mintA.toBase58()]: {pubkey: metadataPubkey, account: metadataStruct}};
       } catch (e) {
         notify({message: "Invalid metadata account for mint"});
         return false;
@@ -693,6 +702,7 @@ export const trade = async (
     return false;
   } else {
     notify({ message: `Trade successful${paidCreatorFees}` });
+    setHasValidDelegate(false);
     return true;
   }
 };

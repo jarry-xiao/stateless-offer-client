@@ -56,7 +56,6 @@ const getDelegate = async (
   try {
     const sizeA = getSize(formState.sizeA, formState.mintA, mintCache);
     let sizeB = getSize(formState.sizeB, formState.mintB, mintCache);
-    //console.log("Get Delegate", hasMetadata, metadata)
     if (hasMetadata && metadata) {
       const fee = Math.floor(
         (metadata.account.data.sellerFeeBasisPoints * sizeB) / 10000
@@ -312,7 +311,7 @@ export function TransferBox() {
             console.log(meta)
             break;
           } catch {
-            console.log("Invalid metadata account");
+            continue
           }
         }
       }
@@ -531,6 +530,7 @@ export function TransferBox() {
                         getSize(formState.sizeB, formState.mintB, mintCache)
                       ),
                       metadata,
+                      setHasValidDelegate,
                       wallet
                     );
                   } catch (e) {
