@@ -56,7 +56,7 @@ const getDelegate = async (
   try {
     const sizeA = getSize(formState.sizeA, formState.mintA, mintCache);
     let sizeB = getSize(formState.sizeB, formState.mintB, mintCache);
-    console.log("Get Delegate", hasMetadata, metadata)
+    //console.log("Get Delegate", hasMetadata, metadata)
     if (hasMetadata && metadata) {
       const fee = Math.floor(
         (metadata.account.data.sellerFeeBasisPoints * sizeB) / 10000
@@ -414,7 +414,7 @@ export function TransferBox() {
       formState.mintA in mintCache && formState.mintB in mintCache;
     const sizeA = getSize(formState.sizeA, formState.mintA, mintCache);
     const sizeB = getSize(formState.sizeB, formState.mintB, mintCache);
-    if (!mintEntered || sizeA <= 0 || sizeB <= 0) {
+    if (!mintEntered || sizeA <= 0 || sizeB <= 0 || isNaN(sizeA) || isNaN(sizeB)) {
       return <div></div>;
     }
 
