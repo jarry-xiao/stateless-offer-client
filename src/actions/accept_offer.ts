@@ -14,7 +14,7 @@ import {
 import { Schema, serialize } from "borsh";
 import { TOKEN_PROGRAM_ID, Token, NATIVE_MINT } from "@solana/spl-token";
 import { STATELESS_ASK_PROGRAM_ID, TOKEN_METADATA_PROGRAM_ID } from "../utils/";
-import { decodeMetadata, Metadata } from "./metadata";
+import { decodeMetadata, getTokenMetadata } from "./metadata";
 
 export class AcceptOfferArgs {
   instruction: number = 0;
@@ -236,19 +236,6 @@ export const acceptOfferInstructionWithMetadata = async (
   };
 };
 
-const getTokenMetadata = async (mint: PublicKey) => {
-  return (
-    await PublicKey.findProgramAddress(
-      [
-        Buffer.from("metadata"),
-        TOKEN_METADATA_PROGRAM_ID.toBuffer(),
-        mint.toBuffer(),
-      ],
-      TOKEN_METADATA_PROGRAM_ID
-    )
-  )[0];
-};
-
 export const consolidateTokenAccounts = async (
   connection,
   mintA: PublicKey,
@@ -387,19 +374,17 @@ export const changeOffer = async (
     );
     sizeB = new BN(sizeB.toNumber() - fee);
   } else {
-    for (let i = 0; i < 5; ++i) {
-      const result = await connection.getAccountInfo(getTokenMetadata(mintA));
-      if (!result) {
-        try {
-          metadata = decodeMetadata(result.data);
-          const fee = Math.floor(
-            (metadata.data.sellerFeeBasisPoints * sizeB.toNumber()) / 10000
-          );
-          sizeB = new BN(sizeB.toNumber() - fee);
-          break;
-        } catch (e) {
-          console.log("Failed to decode metadata");
-        }
+    const result = await connection.getAccountInfo(getTokenMetadata(mintA));
+    if (!result) {
+      try {
+        metadata = decodeMetadata(result.data);
+        const fee = Math.floor(
+          (metadata.data.sellerFeeBasisPoints * sizeB.toNumber()) / 10000
+        );
+        sizeB = new BN(sizeB.toNumber() - fee);
+      } catch (e) {
+        notify({message: "Invalid metadata account for mint"});
+        return false;
       }
     }
   }
@@ -557,19 +542,17 @@ export const trade = async (
     );
     discountedSize = new BN(discountedSize.toNumber() - fee);
   } else {
-    for (let i = 0; i < 5; ++i) {
-      const result = await connection.getAccountInfo(getTokenMetadata(mintA));
-      if (!result) {
-        try {
-          metadata = decodeMetadata(result.data);
-          const fee = Math.floor(
-            (metadata.data.sellerFeeBasisPoints * sizeB.toNumber()) / 10000
-          );
-          discountedSize = new BN(discountedSize.toNumber() - fee);
-          break;
-        } catch (e) {
-          console.log("Failed to decode metadata");
-        }
+    const result = await connection.getAccountInfo(getTokenMetadata(mintA));
+    if (!result) {
+      try {
+        metadata = decodeMetadata(result.data);
+        const fee = Math.floor(
+          (metadata.data.sellerFeeBasisPoints * sizeB.toNumber()) / 10000
+        );
+        sizeB = new BN(sizeB.toNumber() - fee);
+      } catch (e) {
+        notify({message: "Invalid metadata account for mint"});
+        return false;
       }
     }
   }
