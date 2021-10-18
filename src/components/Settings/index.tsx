@@ -42,7 +42,7 @@ export const Settings = ({
                 }}
               >
                 {ENDPOINTS.map(({ name, endpoint }) => (
-                  <option value={endpoint}>{name}</option>
+                  <option key={name} value={endpoint}>{name}</option>
                 ))}
               </NativeSelect>
             </FormControl>

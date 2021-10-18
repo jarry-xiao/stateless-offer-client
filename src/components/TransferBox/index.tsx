@@ -33,7 +33,11 @@ import {
   STATELESS_ASK_PROGRAM_ID,
   TOKEN_METADATA_PROGRAM_ID,
 } from "../../utils/";
-import { decodeMetadata, Metadata, getTokenMetadata } from "../../actions/metadata";
+import {
+  decodeMetadata,
+  Metadata,
+  getTokenMetadata,
+} from "../../actions/metadata";
 
 const MINTS = ["None", "SOL", "USDC", "USDT", "BTC", "ETH"];
 
@@ -47,21 +51,66 @@ const getSize = (n: any, mint: any, mintCache: any) => {
   }
 };
 
-const getDelegate = async (
-  formState: any,
-  mintCache: any,
-  hasMetadata: boolean,
-  metadata 
-) => {
+const getFees = (formState, metadata) => {
+  try {
+    if (formState.mintA in metadata) {
+      const fees = metadata[formState.mintA].account.data.sellerFeeBasisPoints;
+      const size = parseFloat(formState.sizeB);
+      return [true, size, size * fees / 10000, fees];
+    } else if (formState.mintB in metadata) {
+      const fees = metadata[formState.mintB].account.data.sellerFeeBasisPoints;
+      const size = parseFloat(formState.sizeA);
+      return [false, size, size * fees / 10000, fees];
+    } else {
+      return [true, 0, 0, 0];
+    }
+  } catch {
+    return [true, 0, 0, 0];
+  }
+};
+
+const displayFees = (isSeller, formState, metadata) => {
+  // const creator 
+  const [isSellerNFT, size, feeAmount, fees] = getFees(formState, metadata);
+  const isFeePayer = (isSellerNFT && !isSeller) || (!isSellerNFT && isSeller);
+  if (fees <= 0) return null;
+
+  const feePct = (fees / 100).toFixed(2);
+  if (isFeePayer) {
+    const side = !isSellerNFT ? "Seller" : "Buyer"
+    return (
+      <div
+        style={{
+          marginLeft: "12px",
+          marginTop: "2px",
+          fontSize: 12,
+          textAlign: "left",
+        }}
+      >
+        {`* ${side} will pay a ${feePct}% fee on trade (pays ${feeAmount})`}
+      </div>
+    );
+  } else {
+    const side = isSellerNFT ? "Seller" : "Buyer"
+    return (
+      <div
+        style={{
+          marginLeft: "12px",
+          marginTop: "2px",
+          fontSize: 12,
+          textAlign: "left",
+        }}
+      >
+        {`* ${side} will receive ${feePct}% less on trade due to fees (receives ${size - feeAmount})`}
+      </div>
+    );
+  }
+};
+
+const getDelegate = async (formState: any, mintCache: any, metadata) => {
   try {
     const sizeA = getSize(formState.sizeA, formState.mintA, mintCache);
-    let sizeB = getSize(formState.sizeB, formState.mintB, mintCache);
-    if (hasMetadata && metadata) {
-      const fee = Math.floor(
-        (metadata.account.data.sellerFeeBasisPoints * sizeB) / 10000
-      );
-      sizeB -= fee;
-    }
+    const sizeB = getSize(formState.sizeB, formState.mintB, mintCache);
     return (
       await PublicKey.findProgramAddress(
         [
@@ -76,8 +125,7 @@ const getDelegate = async (
       )
     )[0];
   } catch (e) {
-    console.log(e)
-    console.log("Failed to get delegate. Metadata:", metadata)
+    console.log("Failed to get delegate. Metadata:", metadata);
     return null;
   }
 };
@@ -112,6 +160,7 @@ export function TransferBox() {
   const { env } = useConnectionConfig();
   const [formState, setFormState] = useState(getDefaultFormState());
   const [accountState, setAccountState] = useState({});
+  const [buyerAccountState, setBuyerAccountState] = useState({});
   const [mintCache, setMintCache] = useState({});
   const [isSeller, setIsSeller] = useState(false);
   const [validAmount, setValidAmount] = useState(false);
@@ -124,10 +173,24 @@ export function TransferBox() {
   const [anchorElB, setAnchorElB] = useState(null);
   const [openPopA, setOpenPopA] = useState(false);
   const [openPopB, setOpenPopB] = useState(false);
+  let inputClicked = false;
   const [metadata, setMetadata] = useState({});
   const [tokenMap, setTokenMap] = useState<Map<string, TokenInfo>>(new Map());
 
   useEffect(() => {
+    console.log("RESET");
+    if (!wallet.connected) {
+      console.log("Wallet disconnected, resetting state");
+      setBuyerAccountState({});
+      setIsSeller(false);
+      setValidAmount(false);
+      setHasDelegate(false);
+      setHasValidDelegate(false);
+    }
+  }, [wallet.connected, wallet.publicKey]);
+
+  useEffect(() => {
+    console.log("TOKEN LOOKUP");
     new TokenListProvider().resolve().then((tokens) => {
       let tokenList;
       if (env === "devnet") {
@@ -147,13 +210,15 @@ export function TransferBox() {
   }, [setTokenMap, env]);
 
   useEffect(() => {
+    console.log("SET SELLER");
     if (!wallet) {
       return;
     }
     setIsSeller(wallet.publicKey?.toBase58() === formState.maker);
-  }, [formState, wallet, setIsSeller]);
+  }, [formState.maker, wallet, setIsSeller]);
 
   useEffect(() => {
+    console.log("VALIDATE TOKEN ACCOUNT");
     const validate = async () => {
       const tokenAccount: any = accountState;
       if (!tokenAccount.mint) {
@@ -170,11 +235,9 @@ export function TransferBox() {
           console.log("Not a valid float");
         }
       }
-
       const delegate = await getDelegate(
         formState,
         mintCache,
-        formState.mintA in metadata,
         metadata[formState.mintA]
       );
       setHasDelegate(tokenAccount.delegateOption !== 0);
@@ -193,7 +256,11 @@ export function TransferBox() {
   }, [accountState, mintCache, formState, metadata]);
 
   useEffect(() => {
+    console.log("FETCH SELLER TOKEN ACCOUNT");
     let subId;
+    if (!wallet.connected) {
+      return;
+    }
     const fetchAccountState = async () => {
       let sellerWallet;
       let sellerMint;
@@ -261,9 +328,101 @@ export function TransferBox() {
     return () => {
       if (subId) connection.removeAccountChangeListener(subId);
     };
-  }, [formState.maker, formState.mintA, connection, setAccountState]);
+  }, [
+    formState.maker,
+    formState.mintA,
+    connection,
+    setAccountState,
+    wallet.connected,
+  ]);
 
   useEffect(() => {
+    console.log("FETCH BUYER TOKEN ACCOUNT");
+    let subId;
+    if (!wallet.connected || !wallet.publicKey) {
+      console.log("Wallet disconnected, can't fetch buyer token account");
+      return;
+    }
+    const fetchAccountState = async () => {
+      let buyerWallet;
+      let buyerMint;
+      try {
+        buyerWallet = wallet.publicKey;
+        buyerMint = new PublicKey(formState.mintB);
+      } catch (e) {
+        return;
+      }
+      let buyerTokenAccount = (
+        await PublicKey.findProgramAddress(
+          [
+            buyerWallet.toBuffer(),
+            TOKEN_PROGRAM_ID.toBuffer(),
+            buyerMint.toBuffer(),
+          ],
+          SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID
+        )
+      )[0];
+      const result = await connection.getAccountInfo(buyerTokenAccount);
+      if (result) {
+        try {
+          const tokenAccount = deserializeAccount(result.data);
+          setBuyerAccountState(tokenAccount);
+        } catch (e) {
+          console.log("Failed to deserialize account");
+        }
+      } else {
+        let buyerTokenAccounts;
+        try {
+          buyerTokenAccounts = await connection.getTokenAccountsByOwner(
+            buyerWallet,
+            { mint: buyerMint }
+          );
+        } catch {
+          return;
+        }
+        if (buyerTokenAccounts.value) {
+          let badAccounts: any = [];
+          for (const account of buyerTokenAccounts.value) {
+            try {
+              const size = deserializeAccount(account.account.data).amount;
+              badAccounts.push({ pubkey: account.pubkey, size: size });
+            } catch (e) {
+              console.log("Failed to deserialize account", e);
+            }
+          }
+          setNonATAs(badAccounts);
+        }
+      }
+      subId = connection.onAccountChange(buyerTokenAccount, async (result) => {
+        if (result) {
+          console.log("Received account data");
+          try {
+            const tokenAccount = deserializeAccount(result.data);
+            setBuyerAccountState(tokenAccount);
+          } catch (e) {
+            console.log("Failed to deserialize account", e);
+          }
+        }
+      });
+    };
+    fetchAccountState();
+    return () => {
+      if (subId) connection.removeAccountChangeListener(subId);
+    };
+  }, [
+    formState.maker,
+    formState.mintB,
+    connection,
+    setBuyerAccountState,
+    wallet.publicKey,
+    wallet.connected,
+  ]);
+
+  useEffect(() => {
+    console.log("FETCH MINT ACCOUNTS");
+    if (!wallet.connected) {
+      return;
+    }
     const fetchMintState = async () => {
       let mint;
       for (const mintString of [formState.mintA, formState.mintB]) {
@@ -289,29 +448,39 @@ export function TransferBox() {
       }
     };
     fetchMintState();
-  }, [mintCache, formState.mintA, formState.mintB, connection]);
+  }, [
+    mintCache,
+    formState.mintA,
+    formState.mintB,
+    connection,
+    wallet.connected,
+  ]);
 
   useEffect(() => {
+    console.log("FETCH METADATA ACCOUNTS");
+    if (!wallet.connected) {
+      return;
+    }
     const getMetadata = async () => {
-      if (!(formState.mintA in mintCache)) {
-        return;
-      }
-      if (formState.mintA in metadata) {
-        return;
-      }
-      const metadataPubkey: any = await getTokenMetadata(
-        new PublicKey(formState.mintA)
-      );
-      for (let i = 0; i < 5; ++i) {
+      for (const mint of [formState.mintA, formState.mintB]) {
+        if (!(mint in mintCache)) {
+          return;
+        }
+        if (mint in metadata) {
+          return;
+        }
+        const metadataPubkey: any = await getTokenMetadata(new PublicKey(mint));
         const result = await connection.getAccountInfo(metadataPubkey);
         if (result) {
           try {
             const meta: any = decodeMetadata(result.data);
-            setMetadata({...metadata, [formState.mintA]: {pubkey: metadataPubkey, account: meta}})
-            console.log(meta)
+            setMetadata({
+              ...metadata,
+              [mint]: { pubkey: metadataPubkey, account: meta },
+            });
             break;
           } catch {
-            continue
+            continue;
           }
         }
       }
@@ -320,8 +489,10 @@ export function TransferBox() {
   }, [
     mintCache,
     formState.mintA,
+    formState.mintB,
     setMetadata,
     connection,
+    wallet.connected,
   ]);
 
   const setField = (name: any) => {
@@ -379,6 +550,7 @@ export function TransferBox() {
     let keys: any[] = [];
     keys.push(
       <Input
+        key={mintStr} 
         onKeyPress={handleEnter}
         inputProps={{
           sx: { marginLeft: "15px" },
@@ -388,22 +560,25 @@ export function TransferBox() {
         }}
         value={getField(mintStr)}
         fullWidth
-        onChange={setField(mintStr)}
-        onKeyDown={(e) => e.stopPropagation()}
+        onChange={(e) => {
+          setField(mintStr)(e);
+        }}
+        onClick={(e) => { inputClicked = true }} // necessary?
+        onKeyDown={(e) => e.stopPropagation()} // necessary?
       ></Input>
     );
     for (const mint of MINTS) {
       if (!tokenMap.get(mint)) {
         if (mint === "None") {
           keys.push(
-            <MenuItem value="" sx={{ fontStyle: "italic" }}>
+            <MenuItem key={mint} value="" sx={{ fontStyle: "italic" }}>
               {mint}
             </MenuItem>
           );
         }
         continue;
       }
-      keys.push(<MenuItem value={tokenMap.get(mint).address}>{mint}</MenuItem>);
+      keys.push(<MenuItem key={mint} value={tokenMap.get(mint).address}>{mint}</MenuItem>);
     }
     return keys;
   };
@@ -413,11 +588,17 @@ export function TransferBox() {
       formState.mintA in mintCache && formState.mintB in mintCache;
     const sizeA = getSize(formState.sizeA, formState.mintA, mintCache);
     const sizeB = getSize(formState.sizeB, formState.mintB, mintCache);
-    if (!mintEntered || sizeA <= 0 || sizeB <= 0 || isNaN(sizeA) || isNaN(sizeB)) {
+    if (
+      !mintEntered ||
+      sizeA <= 0 ||
+      sizeB <= 0 ||
+      isNaN(sizeA) ||
+      isNaN(sizeB)
+    ) {
       return <div></div>;
     }
-
-    if (isSeller && nonATAs && nonATAs.length && nonATAs.length > 0) {
+    const buyerAccount: any = buyerAccountState;
+    if (nonATAs && nonATAs.length && nonATAs.length > 0) {
       return (
         <Button
           variant="contained"
@@ -427,7 +608,9 @@ export function TransferBox() {
               try {
                 consolidateTokenAccounts(
                   connection,
-                  new PublicKey(formState.mintA),
+                  isSeller
+                    ? new PublicKey(formState.mintA)
+                    : new PublicKey(formState.mintB),
                   wallet,
                   nonATAs,
                   setNonATAs
@@ -509,7 +692,13 @@ export function TransferBox() {
         </div>
       );
     } else {
-      if (hasValidDelegate && validAmount) {
+      if (
+        hasValidDelegate &&
+        validAmount &&
+        buyerAccount &&
+        "amount" in buyerAccount &&
+        buyerAccount.amount.toNumber() >= sizeB
+      ) {
         return (
           <div>
             <Button
@@ -597,8 +786,11 @@ export function TransferBox() {
             }}
             onClose={handlePopoverCloseA}
           >
-            <object data={`https://explorer.solana.com/address/${formState["mintA"]}/?cluster=${env}`} width="500" height="500">
-            </object>
+            <object
+              data={`https://explorer.solana.com/address/${formState["mintA"]}/?cluster=${env}`}
+              width="500"
+              height="500"
+            ></object>
           </Popover>
           <LoadingButton
             onClick={() => {
@@ -635,8 +827,11 @@ export function TransferBox() {
             }}
             onClose={handlePopoverCloseB}
           >
-            <object data={`https://explorer.solana.com/address/${formState["mintB"]}/?cluster=${env}`} width="500" height="500">
-            </object>
+            <object
+              data={`https://explorer.solana.com/address/${formState["mintB"]}/?cluster=${env}`}
+              width="500"
+              height="500"
+            ></object>
           </Popover>
         </Box>
       </div>
@@ -668,13 +863,20 @@ export function TransferBox() {
                 labelId="seller-mint"
                 value={getField("mintA")}
                 input={<OutlinedInput label="Seller Mint" />}
-                onChange={setField("mintA")}
+                onChange={(e) => {
+                  setField("mintA")(e);
+                }}
                 open={openA}
                 onClose={(e) => {
-                  setOpenA(false);
+                  if (inputClicked) {
+                    inputClicked = false;
+                  } else {
+                    setOpenA(false);
+                  }
                 }}
                 onOpen={(e) => {
                   setOpenA(true);
+                  setOpenB(false);
                 }}
                 renderValue={(selected) => {
                   return selected;
@@ -697,9 +899,14 @@ export function TransferBox() {
                 onChange={setField("mintB")}
                 open={openB}
                 onClose={(e) => {
-                  setOpenB(false);
+                  if (inputClicked) {
+                    inputClicked = false;
+                  } else {
+                    setOpenB(false);
+                  }
                 }}
                 onOpen={(e) => {
+                  setOpenA(false);
                   setOpenB(true);
                 }}
                 renderValue={(selected) => {
@@ -726,12 +933,13 @@ export function TransferBox() {
               type="number"
               value={getField("sizeB")}
               onChange={setField("sizeB")}
-              sx={{ marginBottom: "5px" }}
+              sx={{ marginBottom: "2px" }}
               InputLabelProps={{
                 shrink: true,
               }}
             />
           </div>
+          {displayFees(isSeller, formState, metadata)}
           <div style={{ marginTop: "10px" }}>{displayActions()}</div>
         </Box>
       </div>

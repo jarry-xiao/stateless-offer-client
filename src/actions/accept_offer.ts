@@ -5,7 +5,7 @@ import {
   Keypair,
 } from "@solana/web3.js";
 import { Connection as Conn } from "../contexts";
-import BN from "bn.js";
+import BN, { min } from "bn.js";
 import {
   notify,
   createAssociatedTokenAccountInstruction,
@@ -238,7 +238,7 @@ export const acceptOfferInstructionWithMetadata = async (
 
 export const consolidateTokenAccounts = async (
   connection,
-  mintA: PublicKey,
+  mint: PublicKey,
   wallet: any,
   nonATAs: any[],
   setNonATAs: any
@@ -249,28 +249,28 @@ export const consolidateTokenAccounts = async (
   }
   let signers: Keypair[] = [];
   let instructions: TransactionInstruction[] = [];
-  const tokenAccountMintA = (
+  const tokenAccountMint = (
     await PublicKey.findProgramAddress(
       [
         wallet.publicKey.toBuffer(),
         TOKEN_PROGRAM_ID.toBuffer(),
-        mintA.toBuffer(),
+        mint.toBuffer(),
       ],
       SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID
     )
   )[0];
   createAssociatedTokenAccountInstruction(
     instructions,
-    tokenAccountMintA,
+    tokenAccountMint,
     wallet.publicKey,
     wallet.publicKey,
-    mintA
+    mint
   );
   for (const { pubkey, size } of nonATAs) {
     const transferIx = Token.createTransferInstruction(
       TOKEN_PROGRAM_ID,
       pubkey,
-      tokenAccountMintA,
+      tokenAccountMint,
       wallet.publicKey,
       [],
       size
@@ -316,7 +316,6 @@ export const changeOffer = async (
   metadata,
   approve = true
 ) => {
-  const hasMetadata = mintA.toBase58() in metadata;
   if (!wallet.publicKey) {
     notify({ message: "Wallet not connected!" });
     return false;
@@ -366,31 +365,6 @@ export const changeOffer = async (
       ? wallet.publicKey
       : tokenAccountMintB;
 
-  if (hasMetadata && metadata) {
-    const fee = Math.floor(
-      (metadata[mintA.toBase58()].account.data.sellerFeeBasisPoints *
-        sizeB.toNumber()) /
-        10000
-    );
-    sizeB = new BN(sizeB.toNumber() - fee);
-  } else {
-    const metadataPubkey = await getTokenMetadata(mintA)
-    const result = await connection.getAccountInfo(metadataPubkey);
-    if (result) {
-      try {
-        metadata = decodeMetadata(result.data);
-        const fee = Math.floor(
-          (metadata.data.sellerFeeBasisPoints * sizeB.toNumber()) / 10000
-        );
-        sizeB = new BN(sizeB.toNumber() - fee);
-      } catch (e) {
-        notify({message: "Invalid metadata account for mint"});
-        return false;
-      }
-    } else {
-      console.log("No metadata found for mint")
-    }
-  }
 
   const transferAuthority = (
     await PublicKey.findProgramAddress(
@@ -461,7 +435,30 @@ export const trade = async (
   setHasValidDelegate,
   wallet: any
 ) => {
-  let hasMetadata = mintA.toBase58() in metadata;
+  
+  for (const mint of [mintA.toBase58(), mintB.toBase58()]) {
+    if (!(mint in metadata)) {
+      let metadataPubkey: any = await getTokenMetadata(new PublicKey(mint));
+      try {
+        let result = await connection.getAccountInfo(metadataPubkey);
+        if (result) {
+          try {
+            const meta: any = decodeMetadata(result.data);
+            metadata[mint] =  { pubkey: metadataPubkey, account: meta };
+          } catch {
+            console.log("Failed to decode metadata for mint:", mint);
+          }
+        }
+      } catch {
+        notify({message: "Network request to fetch mint metadata failed"});
+        return false;
+      }
+    }
+  }
+
+  let hasSellerMetadata = mintA.toBase58() in metadata;
+  let hasBuyerMetadata = mintB.toBase58() in metadata;
+  
   if (!wallet.publicKey) {
     notify({ message: "Wallet not connected!" });
     return false;
@@ -536,36 +533,6 @@ export const trade = async (
     return false;
   }
 
-  let discountedSize = sizeB;
-
-  if (hasMetadata && metadata) {
-    const fee = Math.floor(
-      (metadata[mintA.toBase58()].account.data.sellerFeeBasisPoints *
-        sizeB.toNumber()) /
-        10000
-    );
-    discountedSize = new BN(discountedSize.toNumber() - fee);
-  } else {
-    // In the off chance that hasMetadata is false, but this is still an NFT
-    // we want to double check to make sure there is no metadata account
-    const metadataPubkey = await getTokenMetadata(mintA)
-    const result = await connection.getAccountInfo(metadataPubkey);
-    if (result) {
-      try {
-        const metadataStruct = decodeMetadata(result.data);
-        const fee = Math.floor(
-          (metadataStruct.data.sellerFeeBasisPoints * discountedSize.toNumber()) / 10000
-        );
-        discountedSize = new BN(discountedSize.toNumber() - fee);
-        hasMetadata = true;
-        metadata = {[mintA.toBase58()]: {pubkey: metadataPubkey, account: metadataStruct}};
-      } catch (e) {
-        notify({message: "Invalid metadata account for mint"});
-        return false;
-      }
-    }
-  }
-
   makerAccountMintB = isNative ? maker : makerAccountMintB;
   takerAccountMintB = isNative ? wallet.publicKey : takerAccountMintB;
   const [transferAuthority, bump] = await PublicKey.findProgramAddress(
@@ -575,14 +542,14 @@ export const trade = async (
       mintA.toBuffer(),
       mintB.toBuffer(),
       new Uint8Array(sizeA.toArray("le", 8)),
-      new Uint8Array(discountedSize.toArray("le", 8)),
+      new Uint8Array(sizeB.toArray("le", 8)),
     ],
     STATELESS_ASK_PROGRAM_ID
   );
 
   let response;
   let paidCreatorFees = "";
-  if (!hasMetadata) {
+  if (!hasBuyerMetadata && !hasSellerMetadata) {
     let { ix } = await acceptOfferInstructionNoMetadata(
       maker,
       wallet.publicKey,
@@ -608,8 +575,21 @@ export const trade = async (
     );
   } else if (metadata) {
     try {
+      let nftMint;
+      let feeMint;
+      if (mintA.toBase58() in metadata) {
+        nftMint = mintA;
+        feeMint = mintB;
+      } else if (mintB.toBase58() in metadata) {
+        nftMint = mintB;
+        feeMint = mintA;
+      } else {
+        notify( {message: "Neither seller or buyer mint has valid metadata"} )
+        return false;
+      }
+
       let additionalKeys: any[] = [];
-      const creators = metadata[mintA.toBase58()].account.data.creators;
+      const creators = metadata[nftMint.toBase58()].account.data.creators;
       if (!creators) {
         notify({
           message:
@@ -617,7 +597,7 @@ export const trade = async (
         });
         return false;
       }
-      const metadataPubkey = metadata[mintA.toBase58()].pubkey;
+      const metadataPubkey = metadata[nftMint.toBase58()].pubkey;
       if (!metadataPubkey) {
         notify({
           message: "Trade transaction failed: metadata account is undefined",
@@ -642,7 +622,7 @@ export const trade = async (
               [
                 creatorPubkey.toBuffer(),
                 TOKEN_PROGRAM_ID.toBuffer(),
-                mintB.toBuffer(),
+                feeMint.toBuffer(),
               ],
               SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID
             )
@@ -656,7 +636,7 @@ export const trade = async (
               creatorTokenAccount,
               wallet.publicKey,
               creatorPubkey,
-              mintB
+              feeMint, 
             );
           }
           additionalKeys.push({

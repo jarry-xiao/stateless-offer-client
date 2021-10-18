@@ -603,6 +603,15 @@ async function awaitTransactionSignatureConfirmation(
   commitment: Commitment = "recent",
   queryStatus = false
 ): Promise<SignatureStatus | null | void> {
+
+  let endpoint = (connection as any)._rpcEndpoint;
+  let env = "mainnet-beta";
+  for (const cfg of ENDPOINTS) {
+    if (cfg.endpoint === endpoint) {
+      env = cfg.name;
+      break;
+    }
+  }
   let done = false;
   let status: SignatureStatus | null | void = {
     slot: 0,
@@ -651,7 +660,7 @@ async function awaitTransactionSignatureConfirmation(
             txid,
           ]);
           status = signatureStatuses && signatureStatuses.value[0];
-          console.log(`https://explorer.solana.com/tx/${txid}?cluster=mainnet-beta`); // TODO
+          console.log(`https://explorer.solana.com/tx/${txid}?cluster=${env}`);
           if (!done) {
             if (!status) {
               console.log("REST null result for", txid, status);
