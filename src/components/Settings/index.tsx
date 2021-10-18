@@ -17,7 +17,7 @@ export const Settings = ({
   additionalSettings?: JSX.Element;
 }) => {
   const { connected, disconnect, publicKey } = useWallet();
-  const { setEndpoint, env } = useConnectionConfig();
+  const { setEndpoint, env, endpoint } = useConnectionConfig();
   const { setVisible } = useWalletModal();
   const open = useCallback(() => setVisible(true), [setVisible]);
   const { setModal } = useModal();
@@ -40,6 +40,7 @@ export const Settings = ({
                 onChange={(e) => {
                   setEndpoint(e.target.value);
                 }}
+                value={endpoint}
               >
                 {ENDPOINTS.map(({ name, endpoint }) => (
                   <option key={name} value={endpoint}>{name}</option>

@@ -18,13 +18,13 @@ import {
   useConnectionConfig,
 } from "../../contexts";
 import { SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID } from "../../utils";
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { TOKEN_PROGRAM_ID, NATIVE_MINT } from "@solana/spl-token";
 import {
   changeOffer,
   consolidateTokenAccounts,
   trade,
 } from "../../actions/accept_offer";
-import { PublicKey } from "@solana/web3.js";
+import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import BN from "bn.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { ENV, TokenInfo, TokenListProvider } from "@solana/spl-token-registry";
@@ -38,6 +38,7 @@ import {
   Metadata,
   getTokenMetadata,
 } from "../../actions/metadata";
+import { isNative } from "lodash";
 
 const MINTS = ["None", "SOL", "USDC", "USDT", "BTC", "ETH"];
 
@@ -56,11 +57,11 @@ const getFees = (formState, metadata) => {
     if (formState.mintA in metadata) {
       const fees = metadata[formState.mintA].account.data.sellerFeeBasisPoints;
       const size = parseFloat(formState.sizeB);
-      return [true, size, size * fees / 10000, fees];
+      return [true, size, (size * fees) / 10000, fees];
     } else if (formState.mintB in metadata) {
       const fees = metadata[formState.mintB].account.data.sellerFeeBasisPoints;
       const size = parseFloat(formState.sizeA);
-      return [false, size, size * fees / 10000, fees];
+      return [false, size, (size * fees) / 10000, fees];
     } else {
       return [true, 0, 0, 0];
     }
@@ -70,14 +71,14 @@ const getFees = (formState, metadata) => {
 };
 
 const displayFees = (isSeller, formState, metadata) => {
-  // const creator 
+  // const creator
   const [isSellerNFT, size, feeAmount, fees] = getFees(formState, metadata);
   const isFeePayer = (isSellerNFT && !isSeller) || (!isSellerNFT && isSeller);
   if (fees <= 0) return null;
 
   const feePct = (fees / 100).toFixed(2);
   if (isFeePayer) {
-    const side = !isSellerNFT ? "Seller" : "Buyer"
+    const side = !isSellerNFT ? "Seller" : "Buyer";
     return (
       <div
         style={{
@@ -87,11 +88,13 @@ const displayFees = (isSeller, formState, metadata) => {
           textAlign: "left",
         }}
       >
-        {`* ${side} will pay a ${feePct}% fee on trade (pays ${feeAmount})`}
+        {`* ${side} will pay a ${feePct}% fee on trade (pays ~${feeAmount.toFixed(
+          4
+        )})`}
       </div>
     );
   } else {
-    const side = isSellerNFT ? "Seller" : "Buyer"
+    const side = isSellerNFT ? "Seller" : "Buyer";
     return (
       <div
         style={{
@@ -101,7 +104,9 @@ const displayFees = (isSeller, formState, metadata) => {
           textAlign: "left",
         }}
       >
-        {`* ${side} will receive ${feePct}% less on trade due to fees (receives ${size - feeAmount})`}
+        {`* ${side} will receive ${feePct}% less on trade due to fees (receives ~${(
+          size - feeAmount
+        ).toFixed(4)})`}
       </div>
     );
   }
@@ -162,6 +167,7 @@ export function TransferBox() {
   const [accountState, setAccountState] = useState({});
   const [buyerAccountState, setBuyerAccountState] = useState({});
   const [mintCache, setMintCache] = useState({});
+  const [buyerLamports, setBuyerLamports] = useState(0);
   const [isSeller, setIsSeller] = useState(false);
   const [validAmount, setValidAmount] = useState(false);
   const [hasDelegate, setHasDelegate] = useState(false);
@@ -184,6 +190,7 @@ export function TransferBox() {
       setBuyerAccountState({});
       setIsSeller(false);
       setValidAmount(false);
+      setMintCache({});
       setHasDelegate(false);
       setHasValidDelegate(false);
     }
@@ -352,6 +359,14 @@ export function TransferBox() {
       } catch (e) {
         return;
       }
+      try {
+        let walletResult = await connection.getAccountInfo(buyerWallet);
+        if (walletResult) {
+          setBuyerLamports(walletResult.lamports);
+        }
+      } catch {
+        console.log("Failed to fetch wallet");
+      }
       let buyerTokenAccount = (
         await PublicKey.findProgramAddress(
           [
@@ -362,7 +377,12 @@ export function TransferBox() {
           SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID
         )
       )[0];
-      const result = await connection.getAccountInfo(buyerTokenAccount);
+      let result;
+      try {
+        result = await connection.getAccountInfo(buyerTokenAccount);
+      } catch {
+        console.log("Failed to fetch Buyer ATA");
+      }
       if (result) {
         try {
           const tokenAccount = deserializeAccount(result.data);
@@ -550,7 +570,7 @@ export function TransferBox() {
     let keys: any[] = [];
     keys.push(
       <Input
-        key={mintStr} 
+        key={mintStr}
         onKeyPress={handleEnter}
         inputProps={{
           sx: { marginLeft: "15px" },
@@ -563,7 +583,9 @@ export function TransferBox() {
         onChange={(e) => {
           setField(mintStr)(e);
         }}
-        onClick={(e) => { inputClicked = true }} // necessary?
+        onClick={(e) => {
+          inputClicked = true;
+        }} // necessary?
         onKeyDown={(e) => e.stopPropagation()} // necessary?
       ></Input>
     );
@@ -578,7 +600,11 @@ export function TransferBox() {
         }
         continue;
       }
-      keys.push(<MenuItem key={mint} value={tokenMap.get(mint).address}>{mint}</MenuItem>);
+      keys.push(
+        <MenuItem key={mint} value={tokenMap.get(mint).address}>
+          {mint}
+        </MenuItem>
+      );
     }
     return keys;
   };
@@ -588,6 +614,7 @@ export function TransferBox() {
       formState.mintA in mintCache && formState.mintB in mintCache;
     const sizeA = getSize(formState.sizeA, formState.mintA, mintCache);
     const sizeB = getSize(formState.sizeB, formState.mintB, mintCache);
+    let isConnected = true;
     if (
       !mintEntered ||
       sizeA <= 0 ||
@@ -595,9 +622,30 @@ export function TransferBox() {
       isNaN(sizeA) ||
       isNaN(sizeB)
     ) {
-      return <div></div>;
+      isConnected = false;
     }
     const buyerAccount: any = buyerAccountState;
+
+    const hasSufficientTokenBalance =
+      buyerAccount &&
+      "amount" in buyerAccount &&
+      isConnected &&
+      buyerAccount.amount.toNumber() >= sizeB;
+
+    const hasSufficientLamports =
+      buyerLamports >= parseFloat(formState.sizeB) * LAMPORTS_PER_SOL;
+    const isNativeSOL = formState.mintB === NATIVE_MINT.toBase58();
+
+    const hasSufficientBalance = !isNativeSOL
+      ? hasSufficientTokenBalance
+      : hasSufficientLamports;
+
+    const canTrade =
+      !isSeller && hasValidDelegate && validAmount && hasSufficientBalance;
+    const canOpenOffer =
+      isSeller && validAmount && !hasValidDelegate && isConnected;
+    const canCancelOffer = isSeller && hasDelegate && isConnected;
+
     if (nonATAs && nonATAs.length && nonATAs.length > 0) {
       return (
         <Button
@@ -626,116 +674,104 @@ export function TransferBox() {
         </Button>
       );
     }
-    if (isSeller) {
-      return (
-        <div>
-          {validAmount && !hasValidDelegate && (
-            <Button
-              variant="contained"
-              onClick={() => {
-                if (formState) {
-                  try {
-                    changeOffer(
-                      connection,
-                      new PublicKey(formState.mintA),
-                      new PublicKey(formState.mintB),
-                      new BN(sizeA),
-                      new BN(sizeB),
-                      wallet,
-                      setHasValidDelegate,
-                      setHasDelegate,
-                      metadata
-                    );
-                  } catch (e) {
-                    return;
-                  }
-                }
-              }}
-              sx={{ marginRight: "4px" }}
-            >
-              Open New Offer
-            </Button>
-          )}
-          {hasDelegate && (
-            <Button
-              variant="contained"
-              color="error"
-              sx={{ marginLeft: "10px" }}
-              onClick={() => {
-                if (formState) {
-                  try {
-                    changeOffer(
-                      connection,
-                      new PublicKey(formState.mintA),
-                      new PublicKey(formState.mintB),
-                      new BN(
-                        getSize(formState.sizeA, formState.mintA, mintCache)
-                      ),
-                      new BN(
-                        getSize(formState.sizeB, formState.mintB, mintCache)
-                      ),
-                      wallet,
-                      setHasValidDelegate,
-                      setHasDelegate,
-                      metadata,
-                      false
-                    );
-                  } catch (e) {
-                    return;
-                  }
-                }
-              }}
-            >
-              Close Existing Offer
-            </Button>
-          )}
+    return (
+      <div>
+      { (!isSeller && hasValidDelegate && validAmount && !hasSufficientBalance) && <div
+        style={{
+          marginLeft: "12px",
+          marginBottom: "5px",
+          fontSize: 12,
+          textAlign: "left",
+          color: "red",
+        }}
+      >
+        {`* Buyer has insufficient funds`}
         </div>
-      );
-    } else {
-      if (
-        hasValidDelegate &&
-        validAmount &&
-        buyerAccount &&
-        "amount" in buyerAccount &&
-        buyerAccount.amount.toNumber() >= sizeB
-      ) {
-        return (
-          <div>
-            <Button
-              variant="contained"
-              color="success"
-              onClick={() => {
-                if (formState) {
-                  try {
-                    trade(
-                      connection,
-                      new PublicKey(formState.maker),
-                      new PublicKey(formState.mintA),
-                      new PublicKey(formState.mintB),
-                      new BN(
-                        getSize(formState.sizeA, formState.mintA, mintCache)
-                      ),
-                      new BN(
-                        getSize(formState.sizeB, formState.mintB, mintCache)
-                      ),
-                      metadata,
-                      setHasValidDelegate,
-                      wallet
-                    );
-                  } catch (e) {
-                    return;
-                  }
-                }
-              }}
-            >
-              Trade
-            </Button>
-          </div>
-        );
-      } else {
-        return <div></div>;
       }
-    }
+      <div>
+        <Button
+          variant="contained"
+          disabled={!canOpenOffer}
+          onClick={() => {
+            if (formState) {
+              try {
+                changeOffer(
+                  connection,
+                  new PublicKey(formState.mintA),
+                  new PublicKey(formState.mintB),
+                  new BN(sizeA),
+                  new BN(sizeB),
+                  wallet,
+                  setHasValidDelegate,
+                  setHasDelegate,
+                  metadata
+                );
+              } catch (e) {
+                return;
+              }
+            }
+          }}
+        >
+          Open New Offer
+        </Button>
+        <Button
+          variant="contained"
+          color="error"
+          sx={{ marginLeft: "10px" }}
+          disabled={!canCancelOffer}
+          onClick={() => {
+            if (formState) {
+              try {
+                changeOffer(
+                  connection,
+                  new PublicKey(formState.mintA),
+                  new PublicKey(formState.mintB),
+                  new BN(getSize(formState.sizeA, formState.mintA, mintCache)),
+                  new BN(getSize(formState.sizeB, formState.mintB, mintCache)),
+                  wallet,
+                  setHasValidDelegate,
+                  setHasDelegate,
+                  metadata,
+                  false
+                );
+              } catch (e) {
+                return;
+              }
+            }
+          }}
+        >
+          Close Existing Offer
+        </Button>
+        <Button
+          variant="contained"
+          color="success"
+          sx={{ marginLeft: "10px" }}
+          disabled={!canTrade}
+          onClick={() => {
+            if (formState) {
+              try {
+                trade(
+                  connection,
+                  new PublicKey(formState.maker),
+                  new PublicKey(formState.mintA),
+                  new PublicKey(formState.mintB),
+                  new BN(getSize(formState.sizeA, formState.mintA, mintCache)),
+                  new BN(getSize(formState.sizeB, formState.mintB, mintCache)),
+                  metadata,
+                  setHasValidDelegate,
+                  wallet
+                );
+              } catch (e) {
+                return;
+              }
+            }
+          }}
+        >
+          Trade
+        </Button>
+      </div>
+      </div>
+    );
   };
 
   return (
@@ -940,7 +976,7 @@ export function TransferBox() {
             />
           </div>
           {displayFees(isSeller, formState, metadata)}
-          <div style={{ marginTop: "10px" }}>{displayActions()}</div>
+          <div style={{ marginTop: "5px" }}>{displayActions()}</div>
         </Box>
       </div>
     </div>
