@@ -38,7 +38,7 @@ import {
   Metadata,
   getTokenMetadata,
 } from "../../actions/metadata";
-import { isNative } from "lodash";
+import "./styles.css"
 
 const MINTS = ["None", "SOL", "USDC", "USDT", "BTC", "ETH"];
 
@@ -578,6 +578,7 @@ export function TransferBox() {
           placeholder:
             "Enter the desired mint public key (or select from known mints)",
         }}
+        sx={{width:"60ch"}}
         value={getField(mintStr)}
         fullWidth
         onChange={(e) => {
@@ -593,7 +594,7 @@ export function TransferBox() {
       if (!tokenMap.get(mint)) {
         if (mint === "None") {
           keys.push(
-            <MenuItem key={mint} value="" sx={{ fontStyle: "italic" }}>
+            <MenuItem key={mint} value="" sx={{ width: "60ch", fontStyle: "italic" }}>
               {mint}
             </MenuItem>
           );
@@ -601,7 +602,7 @@ export function TransferBox() {
         continue;
       }
       keys.push(
-        <MenuItem key={mint} value={tokenMap.get(mint).address}>
+        <MenuItem sx={{width:"60ch"}} key={mint} value={tokenMap.get(mint).address}>
           {mint}
         </MenuItem>
       );
@@ -676,100 +677,109 @@ export function TransferBox() {
     }
     return (
       <div>
-      { (!isSeller && hasValidDelegate && validAmount && !hasSufficientBalance) && <div
-        style={{
-          marginLeft: "12px",
-          marginBottom: "5px",
-          fontSize: 12,
-          textAlign: "left",
-          color: "red",
-        }}
-      >
-        {`* Buyer has insufficient funds`}
+        {!isSeller && hasValidDelegate && validAmount && !hasSufficientBalance && (
+          <div
+            style={{
+              marginLeft: "12px",
+              marginBottom: "5px",
+              fontSize: 12,
+              textAlign: "left",
+              color: "red",
+            }}
+          >
+            {`* Buyer has insufficient funds`}
+          </div>
+        )}
+        <div>
+          <Button
+            variant="contained"
+            disabled={!canOpenOffer}
+            onClick={() => {
+              if (formState) {
+                try {
+                  changeOffer(
+                    connection,
+                    new PublicKey(formState.mintA),
+                    new PublicKey(formState.mintB),
+                    new BN(sizeA),
+                    new BN(sizeB),
+                    wallet,
+                    setHasValidDelegate,
+                    setHasDelegate,
+                    metadata
+                  );
+                } catch (e) {
+                  return;
+                }
+              }
+            }}
+          >
+            Open New Offer
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            sx={{ marginLeft: "10px" }}
+            disabled={!canCancelOffer}
+            onClick={() => {
+              if (formState) {
+                try {
+                  changeOffer(
+                    connection,
+                    new PublicKey(formState.mintA),
+                    new PublicKey(formState.mintB),
+                    new BN(
+                      getSize(formState.sizeA, formState.mintA, mintCache)
+                    ),
+                    new BN(
+                      getSize(formState.sizeB, formState.mintB, mintCache)
+                    ),
+                    wallet,
+                    setHasValidDelegate,
+                    setHasDelegate,
+                    metadata,
+                    false
+                  );
+                } catch (e) {
+                  return;
+                }
+              }
+            }}
+          >
+            Close Existing Offer
+          </Button>
+          <Button
+            variant="contained"
+            color="success"
+            sx={{ marginLeft: "10px" }}
+            disabled={!canTrade}
+            onClick={() => {
+              if (formState) {
+                try {
+                  trade(
+                    connection,
+                    new PublicKey(formState.maker),
+                    new PublicKey(formState.mintA),
+                    new PublicKey(formState.mintB),
+                    new BN(
+                      getSize(formState.sizeA, formState.mintA, mintCache)
+                    ),
+                    new BN(
+                      getSize(formState.sizeB, formState.mintB, mintCache)
+                    ),
+                    metadata,
+                    setHasValidDelegate,
+                    wallet
+                  );
+                } catch (e) {
+                  return;
+                }
+              }
+            }}
+          >
+            Trade
+          </Button>
         </div>
-      }
-      <div>
-        <Button
-          variant="contained"
-          disabled={!canOpenOffer}
-          onClick={() => {
-            if (formState) {
-              try {
-                changeOffer(
-                  connection,
-                  new PublicKey(formState.mintA),
-                  new PublicKey(formState.mintB),
-                  new BN(sizeA),
-                  new BN(sizeB),
-                  wallet,
-                  setHasValidDelegate,
-                  setHasDelegate,
-                  metadata
-                );
-              } catch (e) {
-                return;
-              }
-            }
-          }}
-        >
-          Open New Offer
-        </Button>
-        <Button
-          variant="contained"
-          color="error"
-          sx={{ marginLeft: "10px" }}
-          disabled={!canCancelOffer}
-          onClick={() => {
-            if (formState) {
-              try {
-                changeOffer(
-                  connection,
-                  new PublicKey(formState.mintA),
-                  new PublicKey(formState.mintB),
-                  new BN(getSize(formState.sizeA, formState.mintA, mintCache)),
-                  new BN(getSize(formState.sizeB, formState.mintB, mintCache)),
-                  wallet,
-                  setHasValidDelegate,
-                  setHasDelegate,
-                  metadata,
-                  false
-                );
-              } catch (e) {
-                return;
-              }
-            }
-          }}
-        >
-          Close Existing Offer
-        </Button>
-        <Button
-          variant="contained"
-          color="success"
-          sx={{ marginLeft: "10px" }}
-          disabled={!canTrade}
-          onClick={() => {
-            if (formState) {
-              try {
-                trade(
-                  connection,
-                  new PublicKey(formState.maker),
-                  new PublicKey(formState.mintA),
-                  new PublicKey(formState.mintB),
-                  new BN(getSize(formState.sizeA, formState.mintA, mintCache)),
-                  new BN(getSize(formState.sizeB, formState.mintB, mintCache)),
-                  metadata,
-                  setHasValidDelegate,
-                  wallet
-                );
-              } catch (e) {
-                return;
-              }
-            }
-          }}
-        >
-          Trade
-        </Button>
-      </div>
       </div>
     );
   };
@@ -888,11 +898,10 @@ export function TransferBox() {
               value={getField("maker")}
               onChange={setField("maker")}
             />
-            <FormControl sx={{ marginBottom: "5px" }}>
+            <FormControl sx={{ marginTop: "8px", marginBottom: "15px"}}>
               <InputLabel id="seller-mint">Seller Mint</InputLabel>
               <Select
                 sx={{
-                  display: "inline-block",
                   textAlign: "left",
                   width: "60ch",
                 }}
@@ -914,6 +923,9 @@ export function TransferBox() {
                   setOpenA(true);
                   setOpenB(false);
                 }}
+                MenuProps={{
+                  sx: {maxWidth:"60ch"}
+                }}
                 renderValue={(selected) => {
                   return selected;
                 }}
@@ -925,10 +937,10 @@ export function TransferBox() {
               <InputLabel id="buyer-mint">Buyer Mint</InputLabel>
               <Select
                 sx={{
-                  display: "inline-block",
                   textAlign: "left",
                   width: "60ch",
                 }}
+                style={{width: "60ch"}}
                 labelId="buyer-mint"
                 value={getField("mintB")}
                 input={<OutlinedInput label="Buyer Mint" />}
@@ -944,6 +956,9 @@ export function TransferBox() {
                 onOpen={(e) => {
                   setOpenA(false);
                   setOpenB(true);
+                }}
+                MenuProps={{
+                  sx: {width:"60ch"}
                 }}
                 renderValue={(selected) => {
                   return selected;
