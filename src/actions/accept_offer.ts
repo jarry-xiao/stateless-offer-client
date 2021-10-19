@@ -365,7 +365,6 @@ export const changeOffer = async (
       ? wallet.publicKey
       : tokenAccountMintB;
 
-
   const transferAuthority = (
     await PublicKey.findProgramAddress(
       [
@@ -435,7 +434,6 @@ export const trade = async (
   setHasValidDelegate,
   wallet: any
 ) => {
-  
   for (const mint of [mintA.toBase58(), mintB.toBase58()]) {
     if (!(mint in metadata)) {
       let metadataPubkey: any = await getTokenMetadata(new PublicKey(mint));
@@ -444,13 +442,13 @@ export const trade = async (
         if (result) {
           try {
             const meta: any = decodeMetadata(result.data);
-            metadata[mint] =  { pubkey: metadataPubkey, account: meta };
+            metadata[mint] = { pubkey: metadataPubkey, account: meta };
           } catch {
             console.log("Failed to decode metadata for mint:", mint);
           }
         }
       } catch {
-        notify({message: "Network request to fetch mint metadata failed"});
+        notify({ message: "Network request to fetch mint metadata failed" });
         return false;
       }
     }
@@ -458,7 +456,7 @@ export const trade = async (
 
   let hasSellerMetadata = mintA.toBase58() in metadata;
   let hasBuyerMetadata = mintB.toBase58() in metadata;
-  
+
   if (!wallet.publicKey) {
     notify({ message: "Wallet not connected!" });
     return false;
@@ -584,7 +582,7 @@ export const trade = async (
         nftMint = mintB;
         feeMint = mintA;
       } else {
-        notify( {message: "Neither seller or buyer mint has valid metadata"} )
+        notify({ message: "Neither seller or buyer mint has valid metadata" });
         return false;
       }
 
@@ -636,7 +634,7 @@ export const trade = async (
               creatorTokenAccount,
               wallet.publicKey,
               creatorPubkey,
-              feeMint, 
+              feeMint
             );
           }
           additionalKeys.push({
@@ -662,7 +660,7 @@ export const trade = async (
         bump
       );
       const tradeIx = ix;
-      console.log("Executing trade (metadata and creators supplied)")
+      console.log("Executing trade (metadata and creators supplied)");
       response = await Conn.sendTransactionWithRetry(
         connection,
         wallet,
