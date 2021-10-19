@@ -11,9 +11,9 @@ const getWindowDimensions = () => {
   const { innerWidth: width, innerHeight: height } = window;
   return {
     width,
-    height
+    height,
   };
-}
+};
 
 const useWindowDimensions = () => {
   const [windowDimensions, setWindowDimensions] = useState(
@@ -30,7 +30,7 @@ const useWindowDimensions = () => {
   }, []);
 
   return windowDimensions;
-}
+};
 
 function App() {
   const colorModeCtx = useColorMode();
@@ -51,7 +51,10 @@ function App() {
   );
 
   return (
-    <div className="App" style={{ backgroundColor: "transparent" }}>
+    <div
+      className="App"
+      style={{ position: "relative", backgroundColor: "transparent", height: "100%" }}
+    >
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <Header />
@@ -59,7 +62,7 @@ function App() {
           sx={{
             width: 600,
             flexGrow: 1,
-            mt: `${Math.floor(0.2*height)}px`,
+            mt: `${Math.floor(0.2 * height)}px`,
             px: "50%",
             display: "flex",
             alignSelf: "center",
@@ -68,6 +71,31 @@ function App() {
           }}
         >
           <TransferBox />
+        </Box>
+        <Box
+          sx={{
+            alignItems: "flex-end",
+            display: "flex",
+            maxWidth: "200ch",
+            position: "absolute",
+            marginLeft: "auto",
+            marginRight: "auto",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            textAlign: "left",
+            padding: "20px"
+          }}
+          fontSize={11}
+        >
+          *This page was produced by the Solana Foundation ("SF") for internal
+          educational and inspiration purposes only. SF does not encourage,
+          induce or sanction the deployment, integration or use of Oyster or any
+          similar application (including its code) in violation of applicable
+          laws or regulations and hereby prohibits any such deployment,
+          integration or use. Anyone using this code or a derivation thereof
+          must comply with applicable laws and regulations when releasing
+          related software.
         </Box>
       </ThemeProvider>
     </div>
